@@ -131,9 +131,9 @@ export function Modal({ open, onClose, title, children, wide }: {
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/40 p-6 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/40 p-3 backdrop-blur-sm sm:p-6" onClick={onClose}>
       <div
-        className={clsx('mt-10 w-full rounded-2xl bg-white shadow-2xl', wide ? 'max-w-3xl' : 'max-w-lg')}
+        className={clsx('mt-4 w-full rounded-2xl bg-white shadow-2xl sm:mt-10', wide ? 'max-w-3xl' : 'max-w-lg')}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">

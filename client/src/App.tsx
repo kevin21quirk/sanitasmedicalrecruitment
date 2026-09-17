@@ -1,7 +1,9 @@
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
-  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3,
+  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -43,11 +45,38 @@ function Logo() {
 }
 
 export default function App() {
+  const [navOpen, setNavOpen] = useState(false);
+  const location = useLocation();
+
+  // Close the drawer whenever the route changes
+  useEffect(() => { setNavOpen(false); }, [location.pathname]);
+
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-gradient-to-b from-brand-700 via-brand-800 to-brand-950">
-        <Logo />
+      {/* Mobile backdrop */}
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-brand-950/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      {/* Sidebar — off-canvas drawer on mobile, fixed rail on desktop */}
+      <aside className={clsx(
+        'fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-gradient-to-b from-brand-700 via-brand-800 to-brand-950 transition-transform duration-200 ease-out',
+        navOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      )}>
+        <div className="relative">
+          <Logo />
+          <button
+            onClick={() => setNavOpen(false)}
+            className="absolute right-3 top-6 rounded-lg p-1.5 text-brand-200 hover:bg-white/10 hover:text-white lg:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
@@ -75,28 +104,38 @@ export default function App() {
       </aside>
 
       {/* Main */}
-      <div className="ml-60 flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200 bg-white/80 px-6 backdrop-blur">
-          <div className="relative w-80">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              placeholder="Search candidates, clients, vacancies…"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const q = (e.target as HTMLInputElement).value;
-                  if (q) window.location.href = `/candidates?search=${encodeURIComponent(q)}`;
-                }
-              }}
-            />
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button
+              onClick={() => setNavOpen(true)}
+              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <img src="/sanitaslogo.png" alt="Sanitas" className="h-6 w-auto lg:hidden" />
+            <div className="relative hidden w-80 max-w-full sm:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                placeholder="Search candidates, clients, vacancies…"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const q = (e.target as HTMLInputElement).value;
+                    if (q) window.location.href = `/candidates?search=${encodeURIComponent(q)}`;
+                  }
+                }}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <NavLink to="/compliance" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <Bell className="h-4.5 w-4.5" />
             </NavLink>
             <div className="flex items-center gap-2.5 border-l border-slate-200 pl-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold text-white">JW</span>
-              <div className="leading-tight">
+              <div className="hidden leading-tight sm:block">
                 <p className="text-xs font-semibold text-ink">Jill Wilkinson</p>
                 <p className="text-[10px] text-slate-500">Director</p>
               </div>
@@ -104,7 +143,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 px-6 py-6">
+        <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/candidates" element={<Candidates />} />
