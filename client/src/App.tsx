@@ -34,13 +34,9 @@ const NAV = [
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5 px-5 py-5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 font-display text-lg font-bold text-white ring-1 ring-white/20">
-        S
-      </span>
-      <div className="leading-tight">
-        <p className="font-display text-[15px] font-bold tracking-wide text-white">SANITAS</p>
-        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-brand-200">Medical Recruitment</p>
+    <div className="px-5 py-5">
+      <div className="flex items-center justify-center rounded-xl bg-white px-3 py-2.5 shadow-sm">
+        <img src="/sanitaslogo.png" alt="Sanitas Medical Recruitment" className="h-10 w-auto" />
       </div>
     </div>
   );
@@ -99,9 +95,9 @@ export default function App() {
               <Bell className="h-4.5 w-4.5" />
             </NavLink>
             <div className="flex items-center gap-2.5 border-l border-slate-200 pl-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold text-white">SM</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold text-white">JW</span>
               <div className="leading-tight">
-                <p className="text-xs font-semibold text-ink">Sarah Mitchell</p>
+                <p className="text-xs font-semibold text-ink">Jill Wilkinson</p>
                 <p className="text-[10px] text-slate-500">Director</p>
               </div>
             </div>

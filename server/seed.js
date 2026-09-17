@@ -93,7 +93,7 @@ async function main() {
 
   // Users
   const users = [
-    ['Sarah Mitchell', 'sarah@sanitasmedicalrecruitment.co.uk', 'Director', 'SM', '#0c56a4'],
+    ['Jill Wilkinson', 'jill@sanitasmedicalrecruitment.co.uk', 'Director', 'JW', '#0c56a4'],
     ['James Oduya', 'james@sanitasmedicalrecruitment.co.uk', 'Senior Recruiter', 'JO', '#1863dc'],
     ['Priya Kaur', 'priya@sanitasmedicalrecruitment.co.uk', 'Recruiter', 'PK', '#01aef0'],
     ['Tom Reeves', 'tom@sanitasmedicalrecruitment.co.uk', 'Recruiter', 'TR', '#7bdcb5'],
