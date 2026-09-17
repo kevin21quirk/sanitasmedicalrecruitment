@@ -4,9 +4,9 @@
 export async function extractCvText(buffer, filename = '', mimetype = '') {
   const ext = filename.toLowerCase().split('.').pop();
   if (mimetype === 'application/pdf' || ext === 'pdf') {
-    const { default: pdfParse } = await import('pdf-parse');
-    const data = await pdfParse(buffer);
-    return data.text;
+    const { extractText } = await import('unpdf');
+    const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
+    return Array.isArray(text) ? text.join('\n') : text;
   }
   if (
     mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
