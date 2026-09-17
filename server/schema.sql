@@ -174,6 +174,22 @@ CREATE TABLE IF NOT EXISTS tasks (
   completed_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS cv_matches (
+  id             SERIAL PRIMARY KEY,
+  vacancy_id     INT NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
+  candidate_id   INT REFERENCES candidates(id) ON DELETE SET NULL,
+  filename       TEXT,
+  candidate_name TEXT,
+  cv_text        TEXT,
+  score          INT,
+  verdict        TEXT,                          -- strong, good, partial, weak
+  matched        JSONB DEFAULT '[]',            -- [{item, evidence}]
+  missing        JSONB DEFAULT '[]',            -- [{item, importance, note}]
+  summary        TEXT,
+  engine         TEXT DEFAULT 'heuristic',      -- claude | heuristic
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_candidates_status   ON candidates(status);
 CREATE INDEX IF NOT EXISTS idx_candidates_role     ON candidates(role);
 CREATE INDEX IF NOT EXISTS idx_compdocs_candidate  ON compliance_documents(candidate_id);
@@ -185,3 +201,4 @@ CREATE INDEX IF NOT EXISTS idx_shifts_candidate    ON shifts(candidate_id);
 CREATE INDEX IF NOT EXISTS idx_shifts_client       ON shifts(client_id);
 CREATE INDEX IF NOT EXISTS idx_activities_entity   ON activities(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due           ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_cvmatch_vacancy     ON cv_matches(vacancy_id);

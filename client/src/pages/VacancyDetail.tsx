@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, ChevronDown, ChevronUp, PencilLine,
-  ShieldCheck, UserPlus, Users,
+  ArrowLeft, Building2, ChevronDown, ChevronUp, CircleCheck, CircleX, FileText,
+  LoaderCircle, PencilLine, ShieldCheck, Sparkles, Trash2, Upload, UserPlus, Users,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
-import { ago, fmtDate, gbp2 } from '../lib/format';
+import { ago, fmtDate, fmtDateTime, gbp2 } from '../lib/format';
 import type {
-  Activity, Candidate, Placement, PlacementStage, Vacancy, VacancyStage,
+  Activity, Candidate, CvMatch, Placement, PlacementStage, Vacancy, VacancyStage,
 } from '../lib/types';
 import {
   Avatar, Badge, btnGhost, btnPrimary, Card, CardHeader, ComplianceBar,
@@ -55,6 +55,88 @@ const EMP_TYPES = ['temporary', 'permanent', 'temp_to_perm'];
 const SHIFT_PATTERNS = ['days', 'nights', 'mixed', 'weekends'];
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
+const VERDICT_STYLES: Record<CvMatch['verdict'], string> = {
+  strong: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  good: 'bg-brand-50 text-brand-700 ring-brand-600/20',
+  partial: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  weak: 'bg-red-50 text-red-700 ring-red-600/20',
+};
+const VERDICT_RING: Record<CvMatch['verdict'], string> = {
+  strong: '#10b981', good: '#1863dc', partial: '#f59e0b', weak: '#ef4444',
+};
+
+function ScoreRing({ score, verdict }: { score: number; verdict: CvMatch['verdict'] }) {
+  const r = 26;
+  const circ = 2 * Math.PI * r;
+  return (
+    <div className="relative h-16 w-16">
+      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#e2e8f0" strokeWidth="6" />
+        <circle
+          cx="32" cy="32" r={r} fill="none" stroke={VERDICT_RING[verdict]} strokeWidth="6"
+          strokeLinecap="round" strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - Math.min(score, 100) / 100)}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-ink">{score}%</span>
+    </div>
+  );
+}
+
+function MatchResult({ m }: { m: CvMatch }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <ScoreRing score={m.score} verdict={m.verdict} />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge value={m.verdict} className={VERDICT_STYLES[m.verdict]} label={`${fmtStatus(m.verdict)} match`} />
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+              {m.engine === 'claude' ? 'AI analysis' : 'Keyword analysis'}
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{m.summary}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+            <CircleCheck className="h-3.5 w-3.5" /> Matches ({m.matched.length})
+          </p>
+          <ul className="space-y-2">
+            {m.matched.map((it, i) => (
+              <li key={i} className="text-xs">
+                <p className="font-medium text-slate-700">{it.item}</p>
+                {it.evidence && <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{it.evidence}</p>}
+              </li>
+            ))}
+            {!m.matched.length && <li className="text-xs text-slate-400">No requirements evidenced</li>}
+          </ul>
+        </div>
+        <div className="rounded-lg border border-red-100 bg-red-50/40 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-red-700">
+            <CircleX className="h-3.5 w-3.5" /> Gaps ({m.missing.length})
+          </p>
+          <ul className="space-y-2">
+            {m.missing.map((it, i) => (
+              <li key={i} className="text-xs">
+                <p className="flex items-center gap-1.5 font-medium text-slate-700">
+                  {it.item}
+                  {it.importance === 'essential' && (
+                    <span className="rounded bg-red-100 px-1 py-px text-[9px] font-semibold uppercase text-red-600">essential</span>
+                  )}
+                </p>
+                {it.note && <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{it.note}</p>}
+              </li>
+            ))}
+            {!m.missing.length && <li className="text-xs text-slate-400">No gaps found</li>}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
@@ -99,12 +181,23 @@ export default function VacancyDetail() {
   const [act, setAct] = useState({ type: 'note' as string, subject: '', body: '' });
   const [posting, setPosting] = useState(false);
 
+  // AI CV screening
+  const [matches, setMatches] = useState<CvMatch[]>([]);
+  const [screenOpen, setScreenOpen] = useState(false);
+  const [screenForm, setScreenForm] = useState({ candidate_name: '', cv_text: '' });
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [screening, setScreening] = useState(false);
+  const [screenErr, setScreenErr] = useState('');
+  const [screenResult, setScreenResult] = useState<CvMatch | null>(null);
+  const [expandedMatch, setExpandedMatch] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     try {
       const res = await api.get<DetailResponse>(`/vacancies/${id}`);
       setVacancy((res.vacancy ?? res) as Vacancy);
       setPipeline(res.pipeline ?? []);
       setActivities(res.activities ?? []);
+      api.get<CvMatch[]>(`/vacancies/${id}/cv-matches`).then(setMatches).catch(() => {});
     } catch {
       setNotFound(true);
     } finally {
@@ -238,6 +331,47 @@ export default function VacancyDetail() {
     } finally {
       setPosting(false);
     }
+  };
+
+  const screenCv = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!vacancy) return;
+    if (!cvFile && !screenForm.cv_text.trim()) {
+      setScreenErr('Upload a CV file or paste the CV text.');
+      return;
+    }
+    setScreening(true);
+    setScreenErr('');
+    try {
+      let result: CvMatch;
+      if (cvFile) {
+        const fd = new FormData();
+        fd.append('cv', cvFile);
+        if (screenForm.candidate_name.trim()) fd.append('candidate_name', screenForm.candidate_name.trim());
+        result = await api.upload<CvMatch>(`/vacancies/${vacancy.id}/match-cv`, fd);
+      } else {
+        result = await api.post<CvMatch>(`/vacancies/${vacancy.id}/match-cv`, {
+          cv_text: screenForm.cv_text,
+          candidate_name: screenForm.candidate_name || null,
+        });
+      }
+      setMatches((ms) => [result, ...ms]);
+      setScreenResult(result);
+      setScreenOpen(false);
+      setScreenForm({ candidate_name: '', cv_text: '' });
+      setCvFile(null);
+    } catch (err) {
+      setScreenErr(err instanceof Error ? err.message : 'Screening failed');
+    } finally {
+      setScreening(false);
+    }
+  };
+
+  const deleteMatch = async (matchId: number) => {
+    await api.del(`/cv-matches/${matchId}`).catch(() => {});
+    setMatches((ms) => ms.filter((m) => m.id !== matchId));
+    setScreenResult((r) => (r?.id === matchId ? null : r));
+    setExpandedMatch((x) => (x === matchId ? null : x));
   };
 
   if (loading) return <Spinner label="Loading vacancy…" />;
@@ -454,6 +588,73 @@ export default function VacancyDetail() {
             </div>
           </Card>
 
+          {/* AI CV Screening */}
+          <Card>
+            <CardHeader
+              title="AI CV Screening"
+              subtitle="Score a candidate's CV against this vacancy"
+              action={
+                <button
+                  onClick={() => { setScreenResult(null); setScreenErr(''); setScreenOpen(true); }}
+                  className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Screen a CV
+                </button>
+              }
+            />
+            <div className="px-5 py-4">
+              {screenResult && <MatchResult m={screenResult} />}
+              {!screenResult && !matches.length && (
+                <p className="py-2 text-center text-xs text-slate-400">
+                  Upload a CV and the AI will score it against this vacancy's requirements.
+                </p>
+              )}
+              {!screenResult && matches.length > 0 && (
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  Previous screenings
+                </p>
+              )}
+              {matches.length > 0 && (
+                <div className="space-y-2">
+                  {matches.map((m) => (
+                    <div key={m.id} className="rounded-lg border border-slate-200">
+                      <button
+                        onClick={() => {
+                          const open = expandedMatch === m.id;
+                          setExpandedMatch(open ? null : m.id);
+                          setScreenResult(null);
+                        }}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50"
+                      >
+                        <ScoreRing score={m.score} verdict={m.verdict} />
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-1.5 truncate text-xs font-medium text-ink">
+                            <FileText className="h-3 w-3 shrink-0 text-slate-400" />
+                            {m.candidate_name || m.filename || 'Pasted CV'}
+                          </p>
+                          <p className="text-[10px] text-slate-400">{fmtDateTime(m.created_at)}</p>
+                        </div>
+                        <Badge value={m.verdict} className={VERDICT_STYLES[m.verdict]} label={fmtStatus(m.verdict)} />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteMatch(m.id); }}
+                          className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                          title="Delete screening"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </button>
+                      {expandedMatch === m.id && (
+                        <div className="border-t border-slate-100 px-3 py-3">
+                          <MatchResult m={m} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
           <Card>
             <CardHeader title="Activity" subtitle="Calls, emails and notes" />
             <div className="border-b border-slate-100 px-5 py-4">
@@ -586,6 +787,62 @@ export default function VacancyDetail() {
             <button type="button" className={btnGhost} onClick={() => setSubmitOpen(false)}>Cancel</button>
             <button type="submit" disabled={submitting} className={clsx(btnPrimary, submitting && 'opacity-60')}>
               {submitting ? 'Submitting…' : 'Submit Candidate'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* CV screening modal */}
+      <Modal open={screenOpen} onClose={() => setScreenOpen(false)} title="Screen a CV" wide>
+        <form onSubmit={screenCv} className="space-y-4">
+          <p className="text-xs leading-relaxed text-slate-500">
+            Upload a CV (PDF, DOCX or TXT) or paste the text below. The AI will score it against
+            <span className="font-medium text-ink"> {v.title}</span> and explain what matches and what's missing.
+          </p>
+          <Field label="Candidate name (optional)">
+            <input
+              value={screenForm.candidate_name}
+              onChange={(e) => setScreenForm((f) => ({ ...f, candidate_name: e.target.value }))}
+              placeholder="e.g. Jane Doe"
+              className={inputCls}
+            />
+          </Field>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-slate-600">CV file</span>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600">
+              <Upload className="h-4 w-4" />
+              {cvFile ? cvFile.name : 'Choose PDF, DOCX or TXT…'}
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="hidden"
+                onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {cvFile && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                File selected — paste box below is ignored when a file is uploaded.
+              </p>
+            )}
+          </div>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Or paste CV text</span>
+            <textarea
+              rows={6}
+              value={screenForm.cv_text}
+              onChange={(e) => setScreenForm((f) => ({ ...f, cv_text: e.target.value }))}
+              placeholder="Paste the candidate's CV content here…"
+              className={clsx(inputCls, 'font-mono text-xs')}
+              disabled={!!cvFile}
+            />
+          </div>
+          {screenErr && <p className="text-xs font-medium text-red-600">{screenErr}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" className={btnGhost} onClick={() => setScreenOpen(false)}>Cancel</button>
+            <button type="submit" disabled={screening} className={clsx(btnPrimary, screening && 'opacity-60')}>
+              {screening
+                ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Analysing…</>
+                : <><Sparkles className="h-4 w-4" /> Screen CV</>}
             </button>
           </div>
         </form>

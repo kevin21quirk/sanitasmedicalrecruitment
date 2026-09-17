@@ -26,6 +26,11 @@ Full-stack recruitment CRM for Sanitas Medical Recruitment (nurses & HCAs into p
 - Required Vercel env var: `DATABASE_URL` (Neon connection string)
 - `server/index.js` = local dev listener only; `server/app.js` = shared Express app (no listen)
 
+## AI CV Screening
+- Vacancy detail → "AI CV Screening" card. Upload PDF/DOCX/TXT or paste text → `POST /api/vacancies/:id/match-cv` (multer memory storage, 5MB)
+- `server/lib/matcher.js`: `extractCvText` (pdf-parse/mammoth) + `matchCv` — uses Anthropic Claude when `ANTHROPIC_API_KEY` env var is set (model via `ANTHROPIC_MODEL`, default `claude-sonnet-4-5`), else falls back to a heuristic skills/requirements matcher
+- Results persist in `cv_matches` table; listed via `GET /api/vacancies/:id/cv-matches`
+
 ## Conventions
 - Postgres returns numerics/counts as strings — coerce with `+`/`Number()` in UI
 - Badge colors driven by `STATUS_STYLES` map in ui.tsx (add new statuses there)

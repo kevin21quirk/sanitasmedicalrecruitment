@@ -186,6 +186,28 @@ export interface Activity {
   created_at: string;
 }
 
+export interface CvMatchItem {
+  item: string;
+  evidence?: string;
+  importance?: 'essential' | 'desirable';
+  note?: string;
+}
+
+export interface CvMatch {
+  id: number;
+  vacancy_id: number;
+  candidate_id: number | null;
+  filename: string | null;
+  candidate_name: string | null;
+  score: number;
+  verdict: 'strong' | 'good' | 'partial' | 'weak';
+  matched: CvMatchItem[];
+  missing: CvMatchItem[];
+  summary: string;
+  engine: 'claude' | 'heuristic';
+  created_at: string;
+}
+
 export interface Task {
   id: number;
   user_id: number | null;
