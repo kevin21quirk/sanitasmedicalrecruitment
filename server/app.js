@@ -39,7 +39,7 @@ app.use('/api/users', users);
 
 app.use((err, req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ error: 'Internal server error', detail: err.message });
 });
 
 export default app;
