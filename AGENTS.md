@@ -20,6 +20,12 @@ Full-stack recruitment CRM for Sanitas Medical Recruitment (nurses & HCAs into p
 - `client/src/components/ui.tsx` — shared primitives (Badge/Card/Modal/PageHeader + STATUS_STYLES color map)
 - Vite proxies `/api` → `localhost:4000`
 
+## Deployment (Vercel)
+- `vercel.json` at root: installs `client/` + `server/` deps, builds `client/` → `client/dist`
+- `api/index.js` + `api/[...all].js` expose the Express app (`server/app.js`) as Vercel serverless functions at `/api/*`
+- Required Vercel env var: `DATABASE_URL` (Neon connection string)
+- `server/index.js` = local dev listener only; `server/app.js` = shared Express app (no listen)
+
 ## Conventions
 - Postgres returns numerics/counts as strings — coerce with `+`/`Number()` in UI
 - Badge colors driven by `STATUS_STYLES` map in ui.tsx (add new statuses there)
