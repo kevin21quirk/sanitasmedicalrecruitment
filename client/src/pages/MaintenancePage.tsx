@@ -21,7 +21,7 @@ export default function MaintenancePage() {
 
         {/* Body */}
         <div className="px-8 py-10 text-center">
-          {/* Status indicator */}
+          {/* Status indicator — clock */}
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent-500/20 ring-4 ring-accent-500/30">
             <svg
               className="h-8 w-8 text-accent-400"
@@ -31,11 +31,8 @@ export default function MaintenancePage() {
               stroke="currentColor"
               aria-hidden="true"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l5.654-4.654m5.657-5.657 1.97-1.97a3 3 0 0 1 4.243 4.243l-1.97 1.97M9.322 4.82l3.03 2.497.766 1.208-.766-1.208-3.03-2.497ZM3 3l1.5 1.5"
-              />
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" />
             </svg>
           </div>
 
