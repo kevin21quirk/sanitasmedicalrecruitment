@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
   CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X,
 } from 'lucide-react';
 import clsx from 'clsx';
-
+import MaintenancePage from './pages/MaintenancePage';
 import Dashboard from './pages/Dashboard';
 import Candidates from './pages/Candidates';
 import CandidateDetail from './pages/CandidateDetail';
@@ -20,6 +19,12 @@ import Timesheets from './pages/Timesheets';
 import Compliance from './pages/Compliance';
 import InboxPage from './pages/Inbox';
 import Reports from './pages/Reports';
+
+// ─── Maintenance mode ──────────────────────────────────────────────────────
+// Set to true to show the "temporarily unavailable" splash page to all users.
+// Switch back to false when the portal is ready to go live.
+const MAINTENANCE_MODE = true;
+// ──────────────────────────────────────────────────────────────────────────
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -50,6 +55,8 @@ export default function App() {
 
   // Close the drawer whenever the route changes
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
+
+  if (MAINTENANCE_MODE) return <MaintenancePage />;
 
   return (
     <div className="flex min-h-screen">
