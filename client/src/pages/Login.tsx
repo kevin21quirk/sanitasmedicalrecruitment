@@ -57,7 +57,7 @@ export default function Login() {
               <img src="/sanitaslogo.png" alt="Sanitas Medical Recruitment" className="h-9 w-auto" />
             </div>
             <h2 className="mt-8 font-display text-2xl font-bold leading-tight">Staffing operations,<br />done properly.</h2>
-            <p className="mt-2 text-sm text-brand-100/80">Nurses, HCAs and support workers into care homes across the South East.</p>
+            <p className="mt-2 text-sm text-brand-100/80">Nurses, HCAs and support workers into care homes across the UK.</p>
           </div>
           <ul className="relative space-y-3">
             {POINTS.map(({ icon: Icon, text }) => (
