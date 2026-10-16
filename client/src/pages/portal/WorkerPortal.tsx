@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
-import { CalendarDays, FileText, LayoutDashboard, User2, Download, PenLine, Inbox } from 'lucide-react';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { CalendarDays, FileText, Home, LayoutDashboard, User2, Download, PenLine, Inbox, ChevronRight, Clock3 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
 import { Availability, Offer, OhRecord, ComplianceDoc } from '../../lib/types';
@@ -9,7 +9,8 @@ import { useAuth } from '../../lib/auth';
 import { PortalShell } from './Portal';
 
 const PAGES = [
-  { to: '/', label: 'My shifts', icon: LayoutDashboard, end: true },
+  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/shifts', label: 'My shifts', icon: LayoutDashboard },
   { to: '/availability', label: 'Availability', icon: CalendarDays },
   { to: '/documents', label: 'My documents', icon: FileText },
   { to: '/messages', label: 'Messages', icon: Inbox },
@@ -24,6 +25,125 @@ interface PortalShift {
   worker_sig_at: string | null; client_sig_at: string | null; timesheet_locked: boolean;
   client_name: string; client_address: string | null; standing_instructions: string | null;
   individual_name: string | null; acked_instructions_at: string | null;
+}
+
+function PortalHome() {
+  const [me, setMe] = useState<any>(null);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [shifts, setShifts] = useState<PortalShift[]>([]);
+  const [msgs, setMsgs] = useState<PortalMessage[]>([]);
+  const [docs, setDocs] = useState<ComplianceDoc[]>([]);
+
+  useEffect(() => {
+    api.get('/portal/me').then(setMe).catch(() => {});
+    api.get<Offer[]>('/portal/offers').then(setOffers).catch(() => {});
+    api.get<PortalShift[]>('/portal/shifts').then(setShifts).catch(() => {});
+    api.get<PortalMessage[]>('/portal/me/messages').then(setMsgs).catch(() => {});
+    api.get<ComplianceDoc[]>('/portal/documents').then(setDocs).catch(() => {});
+  }, []);
+
+  const pending = offers.filter((o) => o.status === 'sent');
+  const upcoming = shifts.filter((s) => s.status === 'booked')
+    .sort((a, b) => a.shift_date.localeCompare(b.shift_date));
+  const next = upcoming[0];
+  const unsigned = shifts.filter((s) => s.status === 'completed' && !s.worker_sig_at);
+  const unread = msgs.filter((m) => !m.read_at).length;
+  const docAttention = docs.filter((d) => ['expired', 'missing'].includes(d.status)).length;
+  const name = me?.profile?.first_name ?? '';
+
+  const tiles = [
+    { label: 'Offers waiting', value: pending.length, to: '/shifts', warn: pending.length > 0 },
+    { label: 'Upcoming shifts', value: upcoming.length, to: '/shifts', warn: false },
+    { label: 'Unread messages', value: unread, to: '/messages', warn: unread > 0 },
+    { label: 'Docs needing attention', value: docAttention, to: '/documents', warn: docAttention > 0 },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <Card className="px-6 py-5">
+        <h2 className="font-display text-xl font-semibold text-ink">Hi{name ? ` ${name}` : ''} 👋</h2>
+        <p className="mt-0.5 text-xs text-slate-500">{fmtDate(new Date().toISOString())} — here's what needs you today.</p>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((t) => (
+          <Link key={t.label} to={t.to}
+            className="glass block rounded-2xl px-4 py-3.5 shadow-sm transition-shadow hover:shadow-md">
+            <p className={`text-2xl font-bold tracking-tight ${t.warn ? 'text-amber-600' : 'text-ink'}`}>{t.value}</p>
+            <p className="text-xs font-medium text-slate-600">{t.label}</p>
+          </Link>
+        ))}
+      </div>
+
+      {pending.length ? (
+        <Card className="ring-1 ring-brand-200">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold text-ink">{pending.length} shift offer{pending.length > 1 ? 's' : ''} waiting for you</p>
+              <p className="text-xs text-slate-500">{pending[0].client_name ?? 'Client'} — {fmtDate(pending[0].request_date ?? '')}</p>
+            </div>
+            <Link to="/shifts" className={btnPrimary}>Respond now <ChevronRight className="h-4 w-4" /></Link>
+          </div>
+        </Card>
+      ) : null}
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Next shift" subtitle="Your next confirmed booking" />
+          {next ? (
+            <div className="px-5 pb-5">
+              <p className="font-display text-lg font-semibold text-ink">{fmtDate(next.shift_date)}</p>
+              <p className="mt-0.5 text-sm text-slate-700">{next.client_name}</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                <Clock3 className="mr-1 inline h-3.5 w-3.5" />
+                {next.start_time.slice(0, 5)}–{next.end_time.slice(0, 5)} · {fmtStatus(next.shift_type)}
+                {next.individual_name && ` · with ${next.individual_name}`}
+              </p>
+              {next.client_address && <p className="mt-1 text-xs text-slate-400">{next.client_address}</p>}
+              <Link to="/shifts" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
+                View all shifts <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          ) : (
+            <p className="px-5 pb-5 text-xs text-slate-400">Nothing booked yet — update your availability so the office knows when you can work.</p>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="To do" subtitle="Things that need your attention" />
+          <ul className="divide-y divide-slate-200/50">
+            {unsigned.length ? (
+              <li className="flex items-center justify-between px-5 py-3">
+                <p className="text-sm text-ink">{unsigned.length} timesheet{unsigned.length > 1 ? 's' : ''} to sign</p>
+                <Link to="/shifts" className="text-xs font-medium text-brand-600 hover:underline">Sign now</Link>
+              </li>
+            ) : null}
+            {upcoming.filter((s) => !s.worker_confirmed_at).length ? (
+              <li className="flex items-center justify-between px-5 py-3">
+                <p className="text-sm text-ink">{upcoming.filter((s) => !s.worker_confirmed_at).length} shift{upcoming.filter((s) => !s.worker_confirmed_at).length > 1 ? 's' : ''} to confirm</p>
+                <Link to="/shifts" className="text-xs font-medium text-brand-600 hover:underline">Confirm</Link>
+              </li>
+            ) : null}
+            {docAttention ? (
+              <li className="flex items-center justify-between px-5 py-3">
+                <p className="text-sm text-ink">{docAttention} document{docAttention > 1 ? 's' : ''} expired or missing</p>
+                <Link to="/documents" className="text-xs font-medium text-brand-600 hover:underline">Review</Link>
+              </li>
+            ) : null}
+            {unread ? (
+              <li className="flex items-center justify-between px-5 py-3">
+                <p className="text-sm text-ink">{unread} unread message{unread > 1 ? 's' : ''}</p>
+                <Link to="/messages" className="text-xs font-medium text-brand-600 hover:underline">Read</Link>
+              </li>
+            ) : null}
+            {!unsigned.length && !docAttention && !unread && upcoming.every((s) => s.worker_confirmed_at) && (
+              <li className="px-5 py-4 text-xs text-slate-400">All caught up — nothing outstanding.</li>
+            )}
+          </ul>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 function MyShifts() {
@@ -398,11 +518,13 @@ export default function WorkerPortal() {
   return (
     <PortalShell title="Worker portal" pages={PAGES}>
       <Routes>
-        <Route path="/" element={<MyShifts />} />
+        <Route path="/" element={<PortalHome />} />
+        <Route path="/shifts" element={<MyShifts />} />
         <Route path="/availability" element={<MyAvailability />} />
         <Route path="/documents" element={<MyDocuments />} />
         <Route path="/messages" element={<MyMessages />} />
         <Route path="/details" element={<MyDetails />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </PortalShell>
   );
