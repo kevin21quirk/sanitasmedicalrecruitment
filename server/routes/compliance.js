@@ -3,7 +3,7 @@ import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { notify } from '../lib/notify.js';
 import { getSetting } from '../lib/settings.js';
-import { nonPlaceable } from '../lib/compliance.js';
+import { nonPlaceable, recomputeComplianceScore } from '../lib/compliance.js';
 import { upload } from '../lib/files.js';
 import { requireAccess } from '../lib/auth.js';
 import { isoDate } from '../lib/dates.js';
@@ -63,6 +63,7 @@ r.patch('/documents/:id', canEdit, async (req, res, next) => {
     params.push(req.params.id);
     const { rows } = await query(
       `UPDATE compliance_documents SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length} RETURNING *`, params);
+    if (rows[0]) await recomputeComplianceScore(rows[0].candidate_id);
     await audit(req, 'document.updated', 'document', +req.params.id, req.body);
     res.json(rows[0]);
   } catch (e) { next(e); }
@@ -254,6 +255,8 @@ r.post('/import-training/:batchId/commit', canEdit, async (req, res, next) => {
         results.inserted++;
       }
     }
+    const touched = [...new Set(batch.rows.filter((r) => r.candidate_id).map((r) => r.candidate_id))];
+    for (const cid of touched) await recomputeComplianceScore(cid);
     await query(`UPDATE import_batches SET status = 'committed', committed_at = now(), summary = summary || $1 WHERE id = $2`,
       [JSON.stringify({ result: results }), batch.id]);
     await audit(req, 'training.imported', 'import_batch', batch.id, { ...results, rejected_rows: undefined });

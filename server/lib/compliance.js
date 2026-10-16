@@ -64,6 +64,36 @@ export async function workerComplianceFor(candidateId, clientId) {
   return { ok: gaps.length === 0, gaps, candidate };
 }
 
+// Percentage of required documents currently held as valid/expiring — drives
+// the stored compliance_score so list sorting/filtering stays correct.
+export async function complianceScore(candidateId) {
+  const { rows: cands } = await query(`SELECT * FROM candidates WHERE id = $1`, [candidateId]);
+  const cand = cands[0];
+  if (!cand) return 0;
+  const required = await requiredDocsFor(cand, null);
+  if (!required.length) return 100;
+  const { rows: docs } = await query(
+    `SELECT type, status, expiry_date FROM compliance_documents WHERE candidate_id = $1`, [candidateId]);
+  const byType = new Map();
+  for (const d of docs) {
+    const cur = byType.get(d.type);
+    if (!cur || (!['valid', 'expiring'].includes(docHealth(cur)) && ['valid', 'expiring'].includes(docHealth(d)))) {
+      byType.set(d.type, d);
+    }
+  }
+  const held = required.filter((t) => {
+    const d = byType.get(t);
+    return d && ['valid', 'expiring'].includes(docHealth(d));
+  }).length;
+  return Math.round((held / required.length) * 100);
+}
+
+export async function recomputeComplianceScore(candidateId) {
+  const score = await complianceScore(candidateId);
+  await query(`UPDATE candidates SET compliance_score = $1 WHERE id = $2`, [score, candidateId]);
+  return score;
+}
+
 // Workers the agency cannot currently place because of lapsed/missing
 // documents (7.4). With clientId, checks that site's list; without, baseline.
 export async function nonPlaceable(clientId = null) {

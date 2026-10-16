@@ -6,7 +6,7 @@ import { canSeeOH, canEditCompliance } from '../lib/auth.js';
 const compGuard = (req, res, next) =>
   canEditCompliance(req.account) ? next() : res.status(403).json({ error: 'Compliance records can only be changed by office/compliance staff' });
 import { upload, storeFile, replacePhoto } from '../lib/files.js';
-import { workerComplianceFor, docHealth, requiredDocsFor } from '../lib/compliance.js';
+import { workerComplianceFor, docHealth, requiredDocsFor, recomputeComplianceScore } from '../lib/compliance.js';
 import { isoDate } from '../lib/dates.js';
 
 const r = Router();
@@ -189,6 +189,7 @@ r.post('/:id/documents', compGuard, async (req, res, next) => {
       `INSERT INTO compliance_documents (candidate_id, type, reference_no, status, issue_date, expiry_date, verified_by, notes, dbs_update_service)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [req.params.id, type, reference_no, status, issue_date || null, expiry_date || null, verified_by, notes, !!dbs_update_service]);
+    await recomputeComplianceScore(+req.params.id);
     await audit(req, 'document.added', 'candidate', +req.params.id, { type });
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
@@ -218,6 +219,7 @@ r.post('/:id/documents/upload', compGuard, upload.single('file'), async (req, re
         [req.params.id, type || 'Document', reference_no || null, issue_date || null, expiry_date || null, file?.id]);
       doc = rows[0];
     }
+    await recomputeComplianceScore(+req.params.id);
     await audit(req, 'document.uploaded', 'candidate', +req.params.id, { type: doc?.type, file: req.file?.originalname });
     res.status(201).json({ document: doc, file });
   } catch (e) { next(e); }

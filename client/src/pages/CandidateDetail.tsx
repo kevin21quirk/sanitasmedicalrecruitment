@@ -117,6 +117,7 @@ export default function CandidateDetail() {
   const [compCheck, setCompCheck] = useState<null | { ok: boolean; gaps: { type: string; problem: string }[] }>(null);
   const [compClient, setCompClient] = useState('');
   const [reqDocs, setReqDocs] = useState<{ type: string; doc_id: number | null; status: string; expiry_date: string | null }[]>([]);
+  const [statusInfo, setStatusInfo] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
 
   const [showEdit, setShowEdit] = useState(false);
@@ -331,7 +332,9 @@ export default function CandidateDetail() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-display text-2xl font-bold text-ink">{full}</h1>
-                <Badge value={c.status} />
+                <button onClick={() => setStatusInfo(true)} title="What does this status mean?" className="transition-transform hover:scale-105">
+                  <Badge value={c.status} />
+                </button>
                 <span className={clsx(chip, 'bg-brand-500/10 text-brand-700 ring-brand-600/20')}>{c.role}</span>
                 {c.nmc_pin && (
                   <span className={clsx(chip, 'bg-violet-50 text-violet-700 ring-violet-600/20')}>
@@ -867,6 +870,52 @@ export default function CandidateDetail() {
       )}
 
       {/* Edit modal */}
+      {/* Status explainer — what's outstanding on this record */}
+      <Modal open={statusInfo} onClose={() => setStatusInfo(false)} title={`${fmtStatus(c.status)} — what's outstanding?`}
+        icon={<ShieldAlert className="h-5 w-5 text-amber-500" />}>
+        {(() => {
+          const outstanding = reqDocs.filter((r) => !['valid', 'expiring'].includes(r.status));
+          const expiring = reqDocs.filter((r) => r.status === 'expiring');
+          return (
+            <div className="space-y-4">
+              {outstanding.length ? (
+                <div className="space-y-2">
+                  {outstanding.map((r) => (
+                    <div key={r.type} className="flex items-start gap-2.5 rounded-xl border border-red-100 bg-red-50/60 p-3">
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                      <div>
+                        <p className="text-sm font-semibold text-red-800">{r.type} — {fmtStatus(r.status)}</p>
+                        <p className="text-xs text-slate-600">
+                          {r.status === 'missing' && `No ${r.type} record is on file.`}
+                          {r.status === 'expired' && `Expired${r.expiry_date ? ` on ${fmtDate(r.expiry_date)}` : ''} — a renewed record is needed.`}
+                          {!['missing', 'expired'].includes(r.status) && 'A record exists but isn\'t verified as valid yet.'}
+                          {' '}Required before this worker can be booked.
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-xl bg-emerald-50/70 px-3 py-2.5 text-sm text-emerald-800">
+                  All baseline requirements are on file — nothing outstanding. Individual care homes may still add their own.
+                </p>
+              )}
+              {!!expiring.length && (
+                <p className="text-xs text-amber-700">
+                  Expiring soon: {expiring.map((r) => `${r.type}${r.expiry_date ? ` (${fmtDate(r.expiry_date)})` : ''}`).join(', ')}
+                </p>
+              )}
+              <div className="flex items-center justify-between gap-2 border-t border-slate-200/60 pt-3">
+                <p className="text-[11px] text-slate-400">Update the status itself via Edit — it's not changed automatically.</p>
+                <button className={btnPrimary} onClick={() => { setStatusInfo(false); setTab('compliance'); }}>
+                  Go to Compliance
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title={`Edit ${full}`} wide>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Status">

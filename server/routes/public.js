@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { getSetting } from '../lib/settings.js';
 import { notify } from '../lib/notify.js';
 import { upload, storeFile } from '../lib/files.js';
+import { recomputeComplianceScore } from '../lib/compliance.js';
 
 const r = Router();
 const newToken = () => crypto.randomBytes(24).toString('hex');
@@ -111,6 +112,7 @@ r.post('/register/:token/submit', async (req, res, next) => {
         `INSERT INTO compliance_documents (candidate_id, type, status, file_id) VALUES ($1,$2,'pending',$3)`,
         [candidateId, f.label || 'Document', f.id]);
     }
+    if (files.length) await recomputeComplianceScore(candidateId);
     // CV text for matching (keeps AI screening useful on self-registered CVs)
     if (p.cv_text) {
       await query(`UPDATE candidates SET notes = COALESCE(notes,'') || $1 WHERE id = $2`,
