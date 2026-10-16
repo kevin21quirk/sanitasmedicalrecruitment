@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { LockKeyhole, ShieldCheck, Users, CalendarCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { inputCls, btnPrimary } from '../components/ui';
@@ -15,6 +15,13 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Splash intro plays once per browser session — logo flies in, chrome sheen, fades out.
+  const [intro, setIntro] = useState(() => !sessionStorage.getItem('sanitas_intro'));
+  useEffect(() => {
+    if (!intro) return;
+    const t = setTimeout(() => { setIntro(false); sessionStorage.setItem('sanitas_intro', '1'); }, 2650);
+    return () => clearTimeout(t);
+  }, [intro]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -29,7 +36,18 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="glass-pop grid w-full max-w-4xl overflow-hidden rounded-3xl animate-pop-in md:grid-cols-5">
+      {intro && (
+        <div className="intro-overlay" aria-hidden>
+          <div className="intro-logo-wrap">
+            <img src="/sanitaslogo.png" alt="" className="intro-logo" />
+            <div className="intro-sheen" />
+          </div>
+        </div>
+      )}
+      <div
+        className="glass-pop grid w-full max-w-4xl overflow-hidden rounded-3xl animate-pop-in md:grid-cols-5"
+        style={intro ? { animationDelay: '2.2s' } : undefined}
+      >
         {/* brand panel */}
         <div className="relative hidden flex-col justify-between bg-gradient-to-br from-brand-600 via-brand-700 to-brand-950 p-8 text-white md:col-span-2 md:flex">
           <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent-500/30 blur-3xl" />

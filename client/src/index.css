@@ -120,6 +120,47 @@ body {
 }
 .photo-upload:hover .photo-overlay { opacity: 1; }
 
+/* Login splash intro — logo flies in from the right, chrome sheen, fades into the background */
+@keyframes intro-fly-in {
+  0% { transform: translateX(70vw) scale(0.25); opacity: 0; filter: blur(6px); }
+  55% { opacity: 1; filter: blur(0); }
+  100% { transform: translateX(0) scale(1); opacity: 1; filter: blur(0); }
+}
+@keyframes intro-glint {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  45% { filter: brightness(1.75) saturate(1.35) drop-shadow(0 0 24px rgb(255 255 255 / 0.9)); }
+}
+@keyframes intro-fade-out {
+  to { transform: scale(1.22); opacity: 0; filter: blur(12px); }
+}
+@keyframes intro-sheen-sweep {
+  0% { transform: translateX(-180%) skewX(-20deg); }
+  100% { transform: translateX(340%) skewX(-20deg); }
+}
+@keyframes intro-overlay-out {
+  to { opacity: 0; visibility: hidden; }
+}
+.intro-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  animation: intro-overlay-out 0.5s ease 2.15s forwards;
+}
+.intro-logo-wrap {
+  position: relative; overflow: hidden; border-radius: 2rem; padding: 2rem 2.75rem;
+}
+.intro-logo {
+  height: clamp(72px, 14vw, 128px); width: auto; display: block;
+  animation:
+    intro-fly-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both,
+    intro-glint 0.9s ease 0.95s both,
+    intro-fade-out 0.5s ease-in 1.75s forwards;
+}
+.intro-sheen {
+  position: absolute; top: -20%; bottom: -20%; left: 0; width: 45%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.85) 50%, transparent);
+  animation: intro-sheen-sweep 0.75s ease-in-out 0.95s both;
+}
+
 @media print {
   body { background: #fff; }
   .glass, .glass-strong { background: #fff; backdrop-filter: none; box-shadow: none; border-color: #e2e8f0; }
