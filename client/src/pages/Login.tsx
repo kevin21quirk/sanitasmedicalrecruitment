@@ -15,11 +15,11 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // Splash intro plays once per browser session — logo flies in, chrome sheen, fades out.
-  const [intro, setIntro] = useState(() => !sessionStorage.getItem('sanitas_intro'));
+  // Splash intro on every visit — logo flies in, chrome sheen, fades out.
+  const [intro, setIntro] = useState(true);
   useEffect(() => {
     if (!intro) return;
-    const t = setTimeout(() => { setIntro(false); sessionStorage.setItem('sanitas_intro', '1'); }, 2650);
+    const t = setTimeout(() => setIntro(false), 2650);
     return () => clearTimeout(t);
   }, [intro]);
 
