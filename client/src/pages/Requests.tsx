@@ -90,6 +90,9 @@ export default function Requests() {
                         {r.individual_name && ` · for ${r.individual_name}`}
                         <span className="text-slate-300"> · via {r.source}</span>
                       </p>
+                      {r.filled_by && (
+                        <p className="mt-0.5 text-xs font-medium text-emerald-600">Booked: {r.filled_by}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {r.status === 'pending' && (

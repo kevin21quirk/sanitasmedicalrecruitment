@@ -21,6 +21,9 @@ r.get('/requests', async (req, res, next) => {
     const { rows } = await query(
       `SELECT sr.*, cl.name AS client_name, i.name AS individual_name,
               (SELECT COUNT(*) FROM shifts s WHERE s.request_id = sr.id AND s.status != 'cancelled') AS filled_count,
+              (SELECT string_agg(c.first_name || ' ' || c.last_name, ', ')
+               FROM shifts s JOIN candidates c ON c.id = s.candidate_id
+               WHERE s.request_id = sr.id AND s.status != 'cancelled') AS filled_by,
               (SELECT COUNT(*) FROM offers o WHERE o.request_id = sr.id AND o.status = 'sent') AS pending_offers
        FROM shift_requests sr
        JOIN clients cl ON cl.id = sr.client_id

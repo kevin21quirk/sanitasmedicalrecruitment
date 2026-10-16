@@ -132,6 +132,7 @@ export interface ShiftRequest {
   notes: string | null;
   offers?: Offer[];
   filled_count?: number;
+  filled_by?: string | null;
   pending_offers?: number;
 }
 
