@@ -106,7 +106,7 @@ export default function CandidateDetail() {
   const [uploadDocId, setUploadDocId] = useState<number | null>(null);
 
   const [checkOpen, setCheckOpen] = useState<null | { register: 'nmc' | 'dbs_update_service' }>(null);
-  const [checkForm, setCheckForm] = useState({ result: 'clear', identifier: '', notes: '' });
+  const [checkForm, setCheckForm] = useState({ result: 'clear', identifier: '', notes: '', review_due: '' });
 
   const [ohOpen, setOhOpen] = useState(false);
   const [ohForm, setOhForm] = useState({ kind: 'immunisation', name: '', record_date: '', expiry_date: '', result: '', notes: '' });
@@ -240,9 +240,10 @@ export default function CandidateDetail() {
       identifier: checkForm.identifier || null,
       result: checkForm.result,
       notes: checkForm.notes || null,
+      review_due: checkForm.review_due || null,
     });
     setCheckOpen(null);
-    setCheckForm({ result: 'clear', identifier: '', notes: '' });
+    setCheckForm({ result: 'clear', identifier: '', notes: '', review_due: '' });
     load();
   };
 
@@ -516,7 +517,7 @@ export default function CandidateDetail() {
                           <td className="px-4 py-3">
                             <Badge value={d.status} />
                             {d.check_result && (
-                              <p className="mt-0.5 text-[10px] text-slate-400">check: {d.check_result} {d.last_checked_at ? fmtDate(d.last_checked_at) : ''}</p>
+                              <p className="mt-0.5 text-[10px] text-slate-400">staff-recorded: {d.check_result} {d.last_checked_at ? fmtDate(d.last_checked_at) : ''} · not system-verified</p>
                             )}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-600">{fmtDate(d.issue_date)}</td>
@@ -547,7 +548,7 @@ export default function CandidateDetail() {
                             <div className="flex items-center justify-end gap-1.5">
                               {(isDbs || isNmc) && (
                                 <button
-                                  onClick={() => { setCheckForm({ result: 'clear', identifier: d.reference_no ?? '', notes: '' }); setCheckOpen({ register: isNmc ? 'nmc' : 'dbs_update_service' }); }}
+                                  onClick={() => { setCheckForm({ result: 'clear', identifier: d.reference_no ?? '', notes: '', review_due: '' }); setCheckOpen({ register: isNmc ? 'nmc' : 'dbs_update_service' }); }}
                                   className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-brand-500/5"
                                   title={isNmc ? 'Record NMC register check' : 'Record DBS Update Service check'}
                                 >
@@ -913,9 +914,14 @@ export default function CandidateDetail() {
           <Field label="Notes">
             <textarea className={clsx(inputCls, 'min-h-16 resize-y')} value={checkForm.notes} onChange={(e) => setCheckForm({ ...checkForm, notes: e.target.value })} />
           </Field>
-          <p className="text-[11px] text-slate-400">
-            The check is recorded with today's date and your name. Perform the live check on the
-            {checkOpen?.register === 'nmc' ? ' NMC register ' : ' DBS Update Service '} and record the result here.
+          <Field label="Review / renewal due (optional)">
+            <input type="date" className={inputCls} value={checkForm.review_due} onChange={(e) => setCheckForm({ ...checkForm, review_due: e.target.value })} />
+          </Field>
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-700">
+            Staff-recorded entry — this app does not verify the
+            {checkOpen?.register === 'nmc' ? ' NMC register ' : ' DBS Update Service '}
+            directly. Perform the live check yourself, then record what you saw here.
+            Your name and the date are stored with the record.
           </p>
         </div>
         <div className="mt-5 flex justify-end gap-2">

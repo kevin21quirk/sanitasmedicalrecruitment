@@ -41,6 +41,49 @@ const CQC_STYLES: Record<string, string> = {
   Inadequate: 'bg-red-50 text-red-700 ring-red-600/20',
 };
 
+interface BoardWorker { id: number; first_name: string; last_name: string; role: string; status: string; suspended: boolean; photo_file_id?: number | null; gaps?: { type: string; problem: string }[] }
+interface BoardData { placeable: BoardWorker[]; blocked: BoardWorker[]; total: number; compliant: number }
+
+function ComplianceBoard({ clientId }: { clientId: string }) {
+  const [board, setBoard] = useState<BoardData | null>(null);
+  useEffect(() => {
+    api.get<BoardData>(`/clients/${clientId}/compliance-board`).then(setBoard).catch(() => setBoard(null));
+  }, [clientId]);
+  if (!board) return <Card><div className="flex justify-center py-8"><Spinner /></div></Card>;
+  const row = (w: BoardWorker, blocked: boolean) => (
+    <li key={w.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
+      <Link to={`/candidates/${w.id}`} className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-ink hover:text-brand-700">
+        <Avatar name={`${w.first_name} ${w.last_name}`} photoId={w.photo_file_id} size="sm" />
+        <span className="truncate">{w.first_name} {w.last_name}</span>
+        <span className="text-[11px] font-normal text-slate-400">{w.role}</span>
+      </Link>
+      {blocked
+        ? <span className="flex flex-wrap justify-end gap-1">
+            {(w.gaps ?? []).slice(0, 3).map((g, i) => (
+              <span key={i} className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 ring-1 ring-inset ring-red-600/20">
+                {g.type === 'status' ? g.problem : `${g.type}: ${g.problem}`}
+              </span>
+            ))}
+            {(w.gaps?.length ?? 0) > 3 && <span className="text-[10px] text-slate-400">+{w.gaps!.length - 3}</span>}
+          </span>
+        : <Badge value="compliant" label="Can book here" />}
+    </li>
+  );
+  return (
+    <Card>
+      <CardHeader
+        title="Site compliance board"
+        subtitle={`${board.compliant} of ${board.total} workers meet this home's document list — blockers enforced on booking`}
+      />
+      <ul className="max-h-96 divide-y divide-slate-200/50 overflow-y-auto">
+        {board.placeable.map((w) => row(w, false))}
+        {board.blocked.map((w) => row(w, true))}
+        {!board.total && <li className="px-5 py-4 text-xs text-slate-400">No workers on file.</li>}
+      </ul>
+    </Card>
+  );
+}
+
 const labelCls = 'mb-1 block text-xs font-medium text-slate-600';
 const thCls = 'px-5 py-2.5';
 const tdCls = 'px-5 py-3';
@@ -644,6 +687,8 @@ export default function ClientDetail() {
               </div>
             </div>
           </Card>
+
+          <div className="xl:col-span-2"><ComplianceBoard clientId={id!} /></div>
 
           <Card className="xl:col-span-2">
             <CardHeader

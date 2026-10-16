@@ -14,6 +14,8 @@ Full-stack staffing-operations system for Sanitas Medical Recruitment (nurses, H
 - `npm run db:migrate` — apply `server/schema.sql` (idempotent; ALTERs use `IF NOT EXISTS`, constraint adds wrapped in `DO $$` blocks)
 - `npm run db:seed` — demo data; staff password `sanitas123`, portal password `portal123`
 - `npm run build` — client production build; `cd client && npx tsc --noEmit` typechecks
+- `npm test` — `node --test` in `server/`: `test/money.test.js` (pure pence arithmetic) + `test/api.test.js` (boots the app, DB-backed acceptance scenarios using seeded logins; creates/removes TEST-* rows)
+- See `HANDOVER.md` for deployment env vars, open business decisions, residency notes and the schema-change log
 
 ## Access model
 - `accounts` table = unified login: `staff` | `worker` | `client` | `supervisor`. Sessions in `sessions` (cookie `sanitas_session`, 30d); deactivation deletes sessions = instant revoke (5.3).
@@ -26,14 +28,16 @@ Full-stack staffing-operations system for Sanitas Medical Recruitment (nurses, H
 - `auth.js` login/logout/me · `accounts.js` account CRUD + access roles · `public.js` registration (draft→submit, resume token, doc upload, auto-ack) + phone-signing tokens
 - `portal.js` worker (docs, OH, availability, offers, confirm/ack/sign, export) + client (requests, rota, timesheets sign, shared profiles) + supervisor (rota)
 - `requests.js` `/api/requests`, `/api/availability` — request log, availability board, `/requests/:id/eligible` allocation context, `/requests/:id/offer|allocate`, `/shifts/:id/reoffer`, `/candidates/:id/first-choice`
-- `invoices.js` — sign-links, paper entry, query/resolve, approve gate, invoices CRUD, aged debtors, payroll export (PAYE/Ltd), margin, actual-vs-booked
+- `invoices.js` — sign-links, paper entry, query/resolve, approve gate (writes the financial snapshot), invoices CRUD, aged debtors, payroll export (PAYE/Ltd, run-tracked + rejection report, `/payroll/runs`), margin (actual/estimated/unavailable)
+- `lib/money.js` integer-pence maths + `snapshotShift`/`marginForShift` · `lib/dates.js` `isoDate` (pg DATE → YYYY-MM-DD without TZ drift) · `lib/mailer.js` pluggable email (Resend/none) with attempt tracking
 - `admin.js` `/api/admin/*` — audit log, settings get/put, retention purge (dry-run first), SAR export/erase, `/export-all` (full JSON), operational reports (7.x), `/digest`
 - `candidates.js`, `clients.js`, `compliance.js`, `shifts.js`, `messages.js`, `files.js` + legacy CRM routes (vacancies, placements, activities, tasks, dashboard, reports, users, cvmatch)
 
 ## Key business rules (spec refs)
 - **Human allocation (3.8)**: `/requests/:id/eligible` returns availability/compliance/travel/continuity/block/first-choice context; no auto-assignment. `auto_ranking` setting off by default.
 - **Booking blocks (2.4, 3.6, 3.11)**: `workerComplianceFor(candidate, client)` in `lib/compliance.js` gates shift create; double-booking guard (overridable `force`); `candidate_blocks` = do-not-offer.
-- **Timesheets (6.x)**: never expose rates to worker/client views; dual signatures (`worker_sig_*`, `client_sig_*` + `sign_tokens` for phone links); `timesheet_locked` when both signed; query flow via `timesheet_queries`; `approved` status = invoice gate (6.10c); uplifts (night/weekend/bank-holiday) via settings in `lib/invoices.js` `upliftFor`.
+- **Timesheets (6.x)**: never expose rates to worker/client views; dual signatures (`worker_sig_*`, `client_sig_*` + `sign_tokens` for phone links); `timesheet_locked` when both signed; query flow via `timesheet_queries`; `approved` status = invoice gate (6.10c); uplifts (night/weekend/bank-holiday, `highest`-wins precedence) resolved in `lib/money.js`; approve freezes the financial snapshot — reports read it, never live rates.
+- **Compliance mutations (2.x)**: `requireAccess('office','compliance')` on document/register edits and uploads — finance excluded by design; restricted files refused to finance in `files.js`.
 - **Data rights**: worker self-export `/portal/export`; staff SAR `/admin/candidates/:id/export`; erase anonymises (blocked with upcoming shifts); retention purge dry-run→apply; `/admin/export-all` full JSON dump.
 - **Comms**: `notify()` in `lib/notify.js` queues to `messages`; wa.me/mailto links generated in response + on GET /messages. Every mutation should `await audit(req, 'noun.verb', entity_type, entity_id, detail)` (8.9).
 

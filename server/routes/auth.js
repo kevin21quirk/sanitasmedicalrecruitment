@@ -8,13 +8,37 @@ import { audit } from '../lib/audit.js';
 
 const r = Router();
 
+// Naive per-IP+email login throttle — an obvious-weakness guard until a real
+// rate limiter is fronting this (see HANDOVER.md § security).
+const attempts = new Map(); // key -> { fails, lockedUntil }
+function throttled(req, email) {
+  const k = `${req.ip}|${email}`;
+  const a = attempts.get(k);
+  return !!(a?.lockedUntil && a.lockedUntil > Date.now());
+}
+function noteFailure(req, email) {
+  const k = `${req.ip}|${email}`;
+  const a = attempts.get(k) ?? { fails: 0, lockedUntil: 0 };
+  a.fails += 1;
+  if (a.fails >= 6) { a.lockedUntil = Date.now() + 10 * 60 * 1000; a.fails = 0; }
+  attempts.set(k, a);
+  if (attempts.size > 5000) attempts.clear();
+}
+const clearFailures = (req, email) => attempts.delete(`${req.ip}|${email}`);
+
 r.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-    const { rows } = await query(`SELECT * FROM accounts WHERE email = $1`, [email.toLowerCase().trim()]);
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    const key = email.toLowerCase().trim();
+    if (key.length > 254 || password.length > 200) return res.status(400).json({ error: 'Invalid credentials' });
+    if (throttled(req, key)) return res.status(429).json({ error: 'Too many attempts — try again in 10 minutes' });
+    const { rows } = await query(`SELECT * FROM accounts WHERE email = $1`, [key]);
     const acc = rows[0];
     if (!acc || !checkPassword(password, acc.password_hash)) {
+      noteFailure(req, key);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     if (!acc.is_active) return res.status(403).json({ error: 'This account has been deactivated' });
@@ -27,6 +51,7 @@ r.post('/login', async (req, res, next) => {
     }
     const token = await createSession(acc.id);
     setSessionCookie(res, token);
+    clearFailures(req, key);
     await query(`UPDATE accounts SET last_login_at = now() WHERE id = $1`, [acc.id]);
     req.account = { id: acc.id, name: acc.email };
     await audit(req, 'auth.login', 'account', acc.id, { kind: acc.kind });

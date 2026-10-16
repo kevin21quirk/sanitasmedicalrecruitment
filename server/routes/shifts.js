@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { workerComplianceFor } from '../lib/compliance.js';
+import { isoDate } from '../lib/dates.js';
 
 const r = Router();
 
@@ -97,7 +98,7 @@ r.patch('/:id', async (req, res, next) => {
       }
     }
     const allowed = ['shift_date','start_time','end_time','hours','shift_type','pay_rate','charge_rate','status','timesheet_status',
-      'request_id','individual_id','actual_start','actual_end','actual_hours','signatory_notes',
+      'candidate_id','client_id','request_id','individual_id','actual_start','actual_end','actual_hours','signatory_notes',
       'cancel_reason','cancelled_by','worker_confirmed_at'];
     const sets = [], params = [];
     for (const k of allowed) {
@@ -105,14 +106,32 @@ r.patch('/:id', async (req, res, next) => {
     }
     if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
 
-    // 2.4 — re-check compliance if moving the shift to a different client/worker
+    // 2.4 — re-check compliance on (re)booking and whenever a booked shift is
+    // moved to a different worker or client. Per-site rules apply to the NEW
+    // pairing. No override exists by design: staff must fix the doc, not bypass.
     const newClient = req.body.client_id ?? existing.client_id;
     const newCand = req.body.candidate_id ?? existing.candidate_id;
+    const newDate = req.body.shift_date ?? existing.shift_date;
     const newStatus = req.body.status ?? existing.status;
-    if (newStatus === 'booked' && existing.status !== 'booked') {
+    const becomingBooked = ['booked', 'completed'].includes(newStatus) && existing.status === 'cancelled'
+      ? true : (newStatus === 'booked' && existing.status !== 'booked');
+    const reassigned = ['booked', 'completed'].includes(newStatus)
+      && (+newClient !== +existing.client_id || +newCand !== +existing.candidate_id || isoDate(newDate) !== isoDate(existing.shift_date));
+    if (becomingBooked || reassigned) {
       const comp = await workerComplianceFor(newCand, newClient);
       if (!comp.ok) {
         return res.status(422).json({ error: 'Worker is not compliant for this client', gaps: comp.gaps });
+      }
+      const conflicts = await findDoubleBooking(newCand, newDate, +req.params.id);
+      if (conflicts.length && !req.body.force) {
+        return res.status(409).json({ error: 'Worker is already booked on this date', conflicts });
+      }
+    }
+    // A — compliance can lapse between booking and the shift: warn if it has.
+    if (!becomingBooked && !reassigned && ['booked', 'completed'].includes(newStatus)) {
+      const comp = await workerComplianceFor(existing.candidate_id, existing.client_id);
+      if (!comp.ok) {
+        await audit(req, 'shift.compliance_lapsed', 'shift', +req.params.id, { gaps: comp.gaps });
       }
     }
     // 4.10 — cancellations carry a timestamp and reason

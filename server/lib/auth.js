@@ -31,8 +31,9 @@ export function readSessionToken(req) {
 }
 
 export function setSessionCookie(res, token) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   res.setHeader('Set-Cookie',
-    `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
+    `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure}`);
 }
 
 export function clearSessionCookie(res) {
@@ -116,3 +117,9 @@ export const canSeeFinance = (acc) =>
 export const canSeeOH = (acc) =>
   (acc?.kind === 'staff' && ['admin', 'compliance'].includes(acc.accessRole)) ||
   acc?.kind === 'worker';
+
+// Who may record/verify compliance documents & register checks (A): office and
+// compliance staff + admin. Finance is deliberately excluded — payroll access
+// does not imply authority over right-to-work/DBS records.
+export const canEditCompliance = (acc) =>
+  acc?.kind === 'staff' && ['admin', 'compliance', 'office'].includes(acc.accessRole);

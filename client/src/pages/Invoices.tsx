@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Download, FileText, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download, FileText, Plus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
 import { fmtDate, gbp2 } from '../lib/format';
@@ -13,7 +13,7 @@ interface Invoice {
   subtotal: string; days_overdue: number; sent_at: string | null; paid_at: string | null;
 }
 interface AgedRow { client_name: string; invoice_id: number; number: string; issue_date: string; due_date: string | null; subtotal: string; bucket: string }
-interface MarginLine { shift_id: number; date: string; worker: string; client: string; hours: number; charge: number; pay: number; ni: number; fee: number; margin: number }
+interface MarginLine { shift_id: number; date: string; worker: string; client: string; hours: number | string; charge: number | string; pay: number | string; ni: number | string; fee: number | string; margin: number | string; multiplier?: string }
 
 const BUCKET_STYLE: Record<string, string> = {
   current: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -231,81 +231,171 @@ function AgedDebtors() {
   );
 }
 
+interface PayrollPreview {
+  format: string; columns: string[]; paye: PayrollRow[]; ltd: PayrollRow[];
+  rejected: { paye: RejectedRow[]; ltd: RejectedRow[] };
+  totals: { paye_hours: number; paye_amount: number | string; ltd_hours: number; ltd_amount: number | string };
+}
+interface PayrollRow { shift_id: number; worker: string; payroll_ref: string | null; date: string; shift_type: string; hours: string | null; uplift_rule: string; uplift_multiplier: string; amount: string; client: string }
+interface RejectedRow extends PayrollRow { reasons: string[] }
+interface PayrollRun { id: number; engagement: string; period_from: string; period_to: string; shift_count: number; total: string; rejected: { shift_id: number; reasons: string[] }[]; created_by_name?: string; created_at: string }
+
 function Payroll() {
   const [from, setFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
-  const [data, setData] = useState<any | null>(null);
-  const run = () => api.get(`/payroll?from=${from}&to=${to}`).then(setData).catch(() => setData(null));
-  useEffect(() => { void run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const csv = () => window.open(`/api/payroll?from=${from}&to=${to}&format=csv`, '_blank');
+  const [data, setData] = useState<PayrollPreview | null>(null);
+  const [runs, setRuns] = useState<PayrollRun[]>([]);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [err, setErr] = useState('');
+  const loadRuns = () => api.get<PayrollRun[]>('/payroll/runs').then(setRuns).catch(() => {});
+  const run = () => api.get<PayrollPreview>(`/payroll?from=${from}&to=${to}`).then(setData).catch(() => setData(null));
+  useEffect(() => { void run(); void loadRuns(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const doExport = async (engagement: 'paye' | 'ltd') => {
+    setExporting(engagement); setErr('');
+    try {
+      const res = await api.post<{ run: PayrollRun; rejected: RejectedRow[] }>(`/payroll/export`, { from, to, engagement });
+      window.open(`/api/payroll/runs/${res.run.id}/csv`, '_blank');
+      run(); loadRuns();
+    } catch (e) { setErr((e as Error).message); }
+    finally { setExporting(null); }
+  };
+
+  const groupCard = (key: 'paye' | 'ltd', title: string, sub: string) => {
+    const rows = data?.[key] ?? [];
+    const rejected = data?.rejected[key] ?? [];
+    return (
+      <Card key={key}>
+        <CardHeader title={title} subtitle={sub}
+          action={<button className={btnPrimary} disabled={exporting === key || !rows.length} onClick={() => doExport(key)}>
+            <Download className="h-4 w-4" /> {exporting === key ? 'Exporting…' : `Export CSV (${rows.length})`}
+          </button>} />
+        <ul className="divide-y divide-slate-200/50">
+          {rows.map((o) => (
+            <li key={o.shift_id} className="flex items-center justify-between px-5 py-2 text-sm">
+              <span className="text-ink">{o.worker} <span className="text-[11px] text-slate-400">· {o.payroll_ref ?? 'no ref'} · {fmtDate(o.date)} · {fmtStatus(o.shift_type)}{o.uplift_rule && o.uplift_rule !== 'none' ? ` · ${o.uplift_rule} ×${o.uplift_multiplier}` : ''}</span></span>
+              <span className="text-xs text-slate-600">{o.hours}h = <b>{gbp2(o.amount)}</b></span>
+            </li>
+          ))}
+          {!rows.length && <li className="px-5 py-4 text-xs text-slate-400">None exportable in this period.</li>}
+          {rejected.map((r2) => (
+            <li key={r2.shift_id} className="flex items-center justify-between gap-3 bg-red-50/50 px-5 py-2 text-sm">
+              <span className="text-ink">{r2.worker} <span className="text-[11px] text-slate-400">· {fmtDate(r2.date)}</span></span>
+              <span className="flex items-center gap-1 text-[11px] font-medium text-red-600"><AlertTriangle className="h-3 w-3" /> {r2.reasons.join('; ')}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-5">
       <Card>
-        <CardHeader title="Payroll export" subtitle="PAYE and Limited-company workers split automatically (6.8)" />
+        <CardHeader title="Payroll export" subtitle="Preview is free — exporting stamps each shift so it can't be paid twice (6.8). Provisional column format." />
         <div className="flex flex-wrap items-end gap-2 px-5 py-4">
           <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} />
           <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} />
-          <button className={btnPrimary} onClick={run}>Run</button>
-          <button className={btnGhost} onClick={csv}><Download className="h-4 w-4" /> CSV</button>
+          <button className={btnPrimary} onClick={run}>Preview</button>
         </div>
+        {err && <p className="mx-5 mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
       </Card>
-      {data && ['paye', 'ltd'].map((group) => (
-        <Card key={group}>
-          <CardHeader title={group === 'paye' ? 'PAYE workers' : 'Limited company workers'}
-            subtitle={group === 'paye'
-              ? `${data.totals.paye_hours}h · ${gbp2(data.totals.paye_amount)}`
-              : `${data.totals.ltd_hours}h · ${gbp2(data.totals.ltd_amount)}`} />
+      {data && ['paye', 'ltd'].map((g) => groupCard(g as 'paye' | 'ltd',
+        g === 'paye' ? 'PAYE workers' : 'Limited company workers',
+        g === 'paye' ? `${data.totals.paye_hours}h · ${gbp2(data.totals.paye_amount)}` : `${data.totals.ltd_hours}h · ${gbp2(data.totals.ltd_amount)}`))}
+      {!!runs.length && (
+        <Card>
+          <CardHeader title="Export history" subtitle="Each run is recorded and auditable; shifts can't appear in two runs" />
           <ul className="divide-y divide-slate-200/50">
-            {(group === 'paye' ? data.paye : data.ltd).map((o: any) => (
-              <li key={o.shift_id} className="flex items-center justify-between px-5 py-2 text-sm">
-                <span className="text-ink">{o.worker} <span className="text-[11px] text-slate-400">· {fmtDate(o.date)} · {fmtStatus(o.shift_type)}{o.uplift > 1 ? ` · ${o.uplift}× uplift` : ''}</span></span>
-                <span className="text-xs text-slate-600">{o.hours}h × {gbp2(o.rate)} = <b>{gbp2(o.amount)}</b></span>
+            {runs.map((r2) => (
+              <li key={r2.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
+                <span className="text-ink">Run #{r2.id} — {r2.engagement.toUpperCase()} · {fmtDate(r2.period_from)}–{fmtDate(r2.period_to)}
+                  <span className="text-[11px] text-slate-400"> · {r2.shift_count} shifts · {gbp2(r2.total)} · {r2.rejected.length} rejected · by {r2.created_by_name}</span></span>
+                <a href={`/api/payroll/runs/${r2.id}/csv`} className={btnGhost}><Download className="h-3.5 w-3.5" /> CSV</a>
               </li>
             ))}
-            {!(group === 'paye' ? data.paye : data.ltd).length && <li className="px-5 py-4 text-xs text-slate-400">None in this period.</li>}
           </ul>
         </Card>
-      ))}
+      )}
     </div>
   );
 }
 
+interface MarginData {
+  assumptions: Record<string, unknown> & { note?: string };
+  totals: { charge: string; pay: string; ni: string; fee: string; margin: string; margin_pct: string | null; actual: number; estimated: number; unavailable: number };
+  by_client: { client: string; charge: string; pay: string; margin: string; margin_pct: string | null; shifts: number }[];
+  lines: (MarginLine & { basis: 'actual' | 'estimated' | 'unavailable'; problems: string[]; uplift: string | null; engagement: string })[];
+}
+
+const BASIS_STYLE = {
+  actual: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  estimated: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  unavailable: 'bg-red-50 text-red-700 ring-red-600/20',
+};
+
 function Margin() {
   const [from, setFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
-  const [data, setData] = useState<{ lines: MarginLine[]; totals: any } | null>(null);
-  const run = () => api.get<{ lines: MarginLine[]; totals: any }>(`/margin?from=${from}&to=${to}`).then(setData).catch(() => setData(null));
+  const [data, setData] = useState<MarginData | null>(null);
+  const run = () => api.get<MarginData>(`/margin?from=${from}&to=${to}`).then(setData).catch(() => setData(null));
   useEffect(() => { void run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="space-y-5">
       <Card>
-        <CardHeader title="Margin per shift" subtitle="Charge minus pay, employer NI and payroll cost (6.12)" />
+        <CardHeader title="Gross margin" subtitle="Charge minus pay, employer NI and bureau fee (6.12). Actual = frozen at approval; estimated = computed from today's settings." />
         <div className="flex flex-wrap items-end gap-2 px-5 py-4">
           <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} />
           <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} />
           <button className={btnPrimary} onClick={run}>Run</button>
         </div>
         {data && (
-          <div className="grid grid-cols-2 gap-3 px-5 pb-4 sm:grid-cols-5">
-            {[['Charge', data.totals.charge], ['Pay', data.totals.pay], ["Employer NI", data.totals.ni], ['Payroll fees', data.totals.fee], ['Margin', data.totals.margin]].map(([k, v]) => (
-              <div key={k as string} className="rounded-lg bg-slate-900/[0.035] px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">{k}</p>
-                <p className={clsx('text-sm font-bold', k === 'Margin' ? 'text-emerald-600' : 'text-ink')}>{gbp2(v as number)}</p>
-              </div>
-            ))}
+          <div className="px-5 pb-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+              {[['Charge', data.totals.charge], ['Pay', data.totals.pay], ['Employer NI', data.totals.ni], ['Bureau fees', data.totals.fee], ['Margin', data.totals.margin], ['Margin %', data.totals.margin_pct ? `${data.totals.margin_pct}%` : '—']].map(([k, v]) => (
+                <div key={k as string} className="rounded-xl bg-slate-900/[0.035] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{k}</p>
+                  <p className={clsx('text-sm font-bold', k === 'Margin' ? 'text-emerald-600' : 'text-ink')}>{gbp2(v) === 'NaN' ? v : v}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400">
+              {data.totals.actual} actual · {data.totals.estimated} estimated · {data.totals.unavailable} unavailable
+              {data.assumptions.note && ` · ${data.assumptions.note}`}
+            </p>
           </div>
         )}
       </Card>
-      {data && (
+      {data && !!data.by_client.length && (
         <Card>
+          <CardHeader title="By client" />
           <ul className="divide-y divide-slate-200/50">
-            {data.lines.map((l) => (
-              <li key={l.shift_id} className="flex items-center justify-between px-5 py-2 text-sm">
-                <span className="text-ink">{fmtDate(l.date)} — {l.worker} <span className="text-[11px] text-slate-400">@ {l.client}</span></span>
-                <span className="text-xs text-slate-600">{gbp2(l.charge)} − {gbp2(l.pay + l.ni + l.fee)} = <b className="text-emerald-600">{gbp2(l.margin)}</b></span>
+            {data.by_client.map((c) => (
+              <li key={c.client} className="flex items-center justify-between px-5 py-2.5 text-sm">
+                <span className="font-medium text-ink">{c.client} <span className="text-[11px] text-slate-400">{c.shifts} shifts</span></span>
+                <span className="text-xs text-slate-600">{gbp2(c.charge)} → <b className="text-emerald-600">{gbp2(c.margin)}</b>{c.margin_pct ? ` (${c.margin_pct}%)` : ''}</span>
               </li>
             ))}
-            {!data.lines.length && <li className="px-5 py-4 text-xs text-slate-400">No approved timesheets in this period.</li>}
+          </ul>
+        </Card>
+      )}
+      {data && (
+        <Card>
+          <CardHeader title="Per shift" />
+          <ul className="divide-y divide-slate-200/50">
+            {data.lines.map((l) => (
+              <li key={l.shift_id} className="flex items-center justify-between gap-2 px-5 py-2 text-sm">
+                <span className="min-w-0 text-ink">{fmtDate(l.date)} — {l.worker} <span className="text-[11px] text-slate-400">@ {l.client} · {l.engagement}</span>
+                  {l.uplift && l.uplift !== 'none' && <span className="ml-1 text-[10px] text-accent-600">×{l.multiplier} {l.uplift}</span>}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className={clsx('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset capitalize', BASIS_STYLE[l.basis])}>{l.basis}</span>
+                  {l.basis === 'unavailable'
+                    ? <span className="text-[11px] text-red-600">{l.problems.join(', ')}</span>
+                    : <span className="text-xs text-slate-600">{gbp2(l.charge)} − {gbp2(+l.pay + +l.ni + +l.fee)} = <b className="text-emerald-600">{gbp2(l.margin)}</b></span>}
+                </span>
+              </li>
+            ))}
+            {!data.lines.length && <li className="px-5 py-4 text-xs text-slate-400">No completed shifts in this period.</li>}
           </ul>
         </Card>
       )}

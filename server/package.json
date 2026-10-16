@@ -7,7 +7,8 @@
     "dev": "node --watch index.js",
     "start": "node index.js",
     "migrate": "node migrate.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.2",

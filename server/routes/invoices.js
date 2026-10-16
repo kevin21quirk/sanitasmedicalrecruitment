@@ -2,26 +2,14 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
+import { isoDate } from '../lib/dates.js';
 import { notify } from '../lib/notify.js';
 import { getSetting } from '../lib/settings.js';
 import { requireAccess } from '../lib/auth.js';
+import { snapshotShift, marginForShift, fromPence, resolveUplift } from '../lib/money.js';
 
 const r = Router();
 const newToken = () => crypto.randomBytes(24).toString('hex');
-
-// ─── 6.7 rate uplifts ──────────────────────────────────────────────────────
-// Highest applicable multiplier wins (bank holiday > weekend > night).
-async function upliftFor(shift) {
-  const [night, weekend, bankHol] = await Promise.all([
-    getSetting('night_uplift'), getSetting('weekend_uplift'), getSetting('bank_holiday_uplift'),
-  ]);
-  const { rows } = await query(`SELECT 1 FROM bank_holidays WHERE date = $1`, [shift.shift_date]);
-  if (rows.length) return bankHol;
-  const dow = new Date(shift.shift_date).getDay();
-  if (dow === 0 || dow === 6) return weekend;
-  if (shift.shift_type === 'night' || shift.shift_type === 'sleep_in') return night;
-  return 1;
-}
 
 // ─── 6.2 signing links for phone signatories ───────────────────────────────
 r.post('/shifts/:id/sign-link', async (req, res, next) => {
@@ -131,11 +119,19 @@ r.post('/shifts/:id/approve', async (req, res, next) => {
     if (!shift.client_sig_at && !req.body?.force) {
       return res.status(409).json({ error: 'Client signature is still outstanding — approve anyway?', needs_force: true });
     }
+    if (shift.pay_rate == null || shift.charge_rate == null) {
+      return res.status(422).json({ error: 'Pay and charge rates must be set on the shift before approval', missing: ['pay_rate', 'charge_rate'].filter((k) => shift[k] == null) });
+    }
     await query(`UPDATE shifts SET timesheet_status = 'approved', approved_by = $1, approved_at = now(),
                   timesheet_locked = TRUE, status = 'completed', updated_at = now()
                  WHERE id = $2`, [req.account?.userId ?? null, req.params.id]);
-    await audit(req, 'timesheet.approved', 'shift', +req.params.id);
-    res.json({ ok: true });
+    // D/F — freeze the financial result at approval so later rate/uplift changes
+    // cannot rewrite history. Reports read the snapshot from here on.
+    const fin = await snapshotShift(+req.params.id);
+    await audit(req, 'timesheet.approved', 'shift', +req.params.id, {
+      snapshot: { pay_pence: fin.pay_amount_pence, charge_pence: fin.charge_amount_pence, uplift: fin.uplift_rule, multiplier: fin.uplift_multiplier },
+    });
+    res.json({ ok: true, financials: fin });
   } catch (e) { next(e); }
 });
 
@@ -180,19 +176,22 @@ r.post('/invoices', async (req, res, next) => {
        ORDER BY s.shift_date`, [client_id, from, to]);
     if (!shifts.length) return res.status(400).json({ error: 'No approved, uninvoiced timesheets in that period' });
 
-    let subtotal = 0;
+    // Snapshot is written at approval; backfill for any legacy approved shift.
+    let subtotalPence = 0;
     const lines = [];
     for (const s of shifts) {
-      const uplift = await upliftFor(s);
-      const hours = +(s.actual_hours ?? s.hours);
-      const rate = +(+s.charge_rate * uplift).toFixed(2);
-      const amount = +(hours * rate).toFixed(2);
-      subtotal += amount;
+      if (s.charge_amount_pence == null) await snapshotShift(s.id);
+      const { rows: fresh } = await query(`SELECT * FROM shifts WHERE id = $1`, [s.id]);
+      const f = fresh[0];
+      const amountPence = +f.charge_amount_pence;
+      subtotalPence += amountPence;
+      const hours = f.paid_hours;
+      const mult = +f.uplift_multiplier;
       lines.push({ shift_id: s.id, description:
-        `${s.worker_name} — ${String(s.shift_date).slice(0, 10)} ${s.shift_type} (${hours}h${uplift > 1 ? `, ${uplift}× uplift` : ''})`,
-        hours, rate, amount });
+        `${s.worker_name} — ${isoDate(s.shift_date)} ${s.shift_type} (${hours}h${mult > 1 ? `, ${f.uplift_rule} ×${f.uplift_multiplier}` : ''})`,
+        hours, rate: fromPence(Math.round(amountPence / (+hours || 1))), amount: fromPence(amountPence) });
     }
-    subtotal = +subtotal.toFixed(2);
+    const subtotal = fromPence(subtotalPence);
 
     const { rows: seq } = await query(`SELECT COUNT(*) AS n FROM invoices`);
     const number = `INV-${new Date().getFullYear()}-${String(+seq[0].n + 1).padStart(4, '0')}`;
@@ -237,79 +236,180 @@ r.get('/invoices/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ─── 6.8 payroll export — PAYE vs Ltd separated ────────────────────────────
+// ─── 6.8 payroll export — PAYE vs Ltd, validated, run-tracked ──────────────
+// Provisional column format ('provisional-v1'); provider-specific layouts are
+// an open decision (see HANDOVER.md). Every row is validated; rejected rows
+// are reported with reasons rather than dropped silently.
+
+async function payrollCandidates(from, to, engagement) {
+  const { rows } = await query(
+    `SELECT s.id AS shift_id, s.shift_date, s.shift_type, s.paid_hours, s.pay_amount_pence, s.uplift_rule,
+            s.uplift_multiplier, s.payroll_export_id, s.timesheet_status, s.approved_at,
+            s.engagement_type_at_approval,
+            c.id AS candidate_id, c.engagement_type, c.first_name || ' ' || c.last_name AS worker_name,
+            c.payroll_ref, cl.name AS client_name
+     FROM shifts s JOIN candidates c ON c.id = s.candidate_id JOIN clients cl ON cl.id = s.client_id
+     WHERE s.shift_date BETWEEN $1 AND $2 AND s.timesheet_status IN ('approved','paid')
+       AND COALESCE(s.engagement_type_at_approval, c.engagement_type, 'paye') = $3
+     ORDER BY c.last_name, s.shift_date`, [from, to, engagement]);
+  const accepted = [], rejected = [];
+  for (const s of rows) {
+    const reasons = [];
+    if (s.payroll_export_id) reasons.push(`already exported in run #${s.payroll_export_id}`);
+    if (s.pay_amount_pence == null) reasons.push('no approved financial snapshot');
+    if (!s.payroll_ref) reasons.push('worker has no payroll reference');
+    if (!s.approved_at) reasons.push('timesheet not approved by office');
+    if (s.engagement_type_at_approval && s.engagement_type_at_approval !== s.engagement_type) {
+      reasons.push(`engagement changed since approval (${s.engagement_type_at_approval} → ${s.engagement_type})`);
+    }
+    const row = {
+      shift_id: s.shift_id, candidate_id: s.candidate_id, worker: s.worker_name, payroll_ref: s.payroll_ref,
+      engagement, client: s.client_name, date: isoDate(s.shift_date), shift_type: s.shift_type,
+      hours: s.paid_hours, uplift_rule: s.uplift_rule, uplift_multiplier: s.uplift_multiplier,
+      amount: fromPence(s.pay_amount_pence == null ? null : +s.pay_amount_pence),
+      amount_pence: s.pay_amount_pence == null ? null : +s.pay_amount_pence,
+    };
+    if (reasons.length) rejected.push({ ...row, reasons }); else accepted.push(row);
+  }
+  return { accepted, rejected };
+}
+
+const PAYROLL_COLUMNS = ['payroll_ref', 'worker', 'engagement', 'client', 'date', 'shift_type', 'hours', 'uplift_rule', 'uplift_multiplier', 'amount'];
+const toCsv = (rows, cols) => [cols.join(','), ...rows.map((r) =>
+  cols.map((c) => `"${String(r[c] ?? '').replaceAll('"', '""')}"`).join(','))].join('\n');
+
+// Preview (no side effects): both bureaux, with rejections.
 r.get('/payroll', requireAccess('finance'), async (req, res, next) => {
   try {
     const { from, to } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
-    const { rows } = await query(
-      `SELECT s.id AS shift_id, s.shift_date, s.shift_type, s.hours, s.actual_hours,
-              s.pay_rate, c.engagement_type,
-              c.first_name || ' ' || c.last_name AS worker_name, c.payroll_ref
-       FROM shifts s JOIN candidates c ON c.id = s.candidate_id
-       WHERE s.shift_date BETWEEN $1 AND $2 AND s.timesheet_status IN ('approved','paid')
-       ORDER BY c.engagement_type, c.last_name, s.shift_date`, [from, to]);
-    const out = [];
-    for (const s of rows) {
-      const uplift = await upliftFor(s);
-      out.push({
-        shift_id: s.shift_id, date: s.shift_date, worker: s.worker_name,
-        payroll_ref: s.payroll_ref, engagement: s.engagement_type || 'paye',
-        shift_type: s.shift_type, hours: +(s.actual_hours ?? s.hours),
-        uplift, rate: +(+s.pay_rate * uplift).toFixed(2),
-        amount: +(+(s.actual_hours ?? s.hours) * +s.pay_rate * uplift).toFixed(2),
-      });
-    }
-    if (req.query.format === 'csv') {
-      const head = 'worker,payroll_ref,engagement,date,shift_type,hours,uplift,rate,amount';
-      const csv = [head, ...out.map((o) =>
-        [o.worker, o.payroll_ref ?? '', o.engagement, o.date, o.shift_type, o.hours, o.uplift, o.rate, o.amount]
-          .map((v) => `"${String(v).replaceAll('"', '""')}"`).join(','))].join('\n');
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="payroll-${from}-${to}.csv"`);
-      return res.send(csv);
-    }
-    const paye = out.filter((o) => o.engagement !== 'ltd');
-    const ltd = out.filter((o) => o.engagement === 'ltd');
-    res.json({ from, to, paye, ltd, totals: {
-      paye_hours: paye.reduce((s, o) => s + o.hours, 0),
-      paye_amount: +paye.reduce((s, o) => s + o.amount, 0).toFixed(2),
-      ltd_hours: ltd.reduce((s, o) => s + o.hours, 0),
-      ltd_amount: +ltd.reduce((s, o) => s + o.amount, 0).toFixed(2),
-    }});
+    const [paye, ltd] = await Promise.all([payrollCandidates(from, to, 'paye'), payrollCandidates(from, to, 'ltd')]);
+    const sum = (rows) => rows.reduce((a, r) => a + (r.amount_pence ?? 0), 0);
+    res.json({
+      from, to, format: 'provisional-v1', columns: PAYROLL_COLUMNS,
+      paye: paye.accepted, ltd: ltd.accepted,
+      rejected: { paye: paye.rejected, ltd: ltd.rejected },
+      totals: {
+        paye_hours: paye.accepted.reduce((a, r) => a + +r.hours, 0), paye_amount: fromPence(sum(paye.accepted)),
+        ltd_hours: ltd.accepted.reduce((a, r) => a + +r.hours, 0), ltd_amount: fromPence(sum(ltd.accepted)),
+      },
+    });
   } catch (e) { next(e); }
 });
 
-// ─── 6.12 margin: charge minus pay, employer NI and payroll fee ────────────
+// Commit a run for ONE bureau: marks shifts exported (duplicate guard), records
+// the run + rejections, returns CSV. Re-running the same period yields nothing new.
+r.post('/payroll/export', requireAccess('finance'), async (req, res, next) => {
+  try {
+    const { from, to, engagement } = req.body || {};
+    if (!from || !to || !['paye', 'ltd'].includes(engagement)) {
+      return res.status(400).json({ error: 'from, to and engagement (paye|ltd) required' });
+    }
+    const { accepted, rejected } = await payrollCandidates(from, to, engagement);
+    if (!accepted.length) return res.status(409).json({ error: 'No exportable rows — see rejected', rejected });
+    const total = accepted.reduce((a, r) => a + r.amount_pence, 0);
+    const { rows: run } = await query(
+      `INSERT INTO payroll_exports (engagement, period_from, period_to, shift_count, total_pence, rejected, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [engagement, from, to, accepted.length, total,
+       JSON.stringify(rejected.map((x) => ({ shift_id: x.shift_id, reasons: x.reasons }))), req.account?.userId ?? null]);
+    await query(`UPDATE shifts SET payroll_export_id = $1, timesheet_status = 'paid', updated_at = now() WHERE id = ANY($2::int[])`,
+      [run[0].id, accepted.map((x) => x.shift_id)]);
+    await audit(req, 'payroll.exported', 'payroll_export', run[0].id,
+      { engagement, from, to, shifts: accepted.length, total_pence: total, rejected: rejected.length });
+    if (req.query.format === 'csv' || req.body?.format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="payroll-${engagement}-${from}-${to}-run${run[0].id}.csv"`);
+      return res.send(toCsv(accepted, PAYROLL_COLUMNS));
+    }
+    res.status(201).json({ run: run[0], accepted, rejected });
+  } catch (e) { next(e); }
+});
+
+r.get('/payroll/runs', requireAccess('finance'), async (_req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT p.*, u.name AS created_by_name FROM payroll_exports p LEFT JOIN users u ON u.id = p.created_by ORDER BY p.created_at DESC LIMIT 100`);
+    res.json(rows.map((x) => ({ ...x, total: fromPence(+x.total_pence) })));
+  } catch (e) { next(e); }
+});
+
+// Re-download a previous run's CSV (same rows, no re-processing).
+r.get('/payroll/runs/:id/csv', requireAccess('finance'), async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT s.id AS shift_id, s.shift_date, s.shift_type, s.paid_hours, s.pay_amount_pence, s.uplift_rule, s.uplift_multiplier,
+              c.first_name || ' ' || c.last_name AS worker, c.payroll_ref, cl.name AS client, p.engagement
+       FROM shifts s JOIN candidates c ON c.id = s.candidate_id JOIN clients cl ON cl.id = s.client_id
+       JOIN payroll_exports p ON p.id = s.payroll_export_id WHERE s.payroll_export_id = $1 ORDER BY c.last_name, s.shift_date`, [req.params.id]);
+    const data = rows.map((x) => ({ ...x, date: isoDate(x.shift_date), hours: x.paid_hours, amount: fromPence(+x.pay_amount_pence) }));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="payroll-run-${req.params.id}.csv"`);
+    res.send(toCsv(data, PAYROLL_COLUMNS));
+  } catch (e) { next(e); }
+});
+
+// ─── 6.12 gross margin — actual (snapshot) vs estimated, per shift & client ─
 r.get('/margin', requireAccess('finance'), async (req, res, next) => {
   try {
     const { from, to } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
     const { rows } = await query(
-      `SELECT s.id, s.shift_date, s.shift_type, s.hours, s.actual_hours, s.pay_rate, s.charge_rate,
-              c.engagement_type, cl.name AS client_name,
+      `SELECT s.*, c.engagement_type, cl.name AS client_name, cl.id AS cid,
               c.first_name || ' ' || c.last_name AS worker_name
        FROM shifts s JOIN candidates c ON c.id = s.candidate_id JOIN clients cl ON cl.id = s.client_id
-       WHERE s.shift_date BETWEEN $1 AND $2 AND s.timesheet_status IN ('approved','paid')
+       WHERE s.shift_date BETWEEN $1 AND $2 AND s.status = 'completed' AND s.timesheet_status != 'queried'
        ORDER BY s.shift_date`, [from, to]);
-    const niPct = +(await getSetting('employers_ni_pct')) / 100;
-    const payrollFee = +(await getSetting('payroll_fee_per_worker_week'));
     const lines = [];
     for (const s of rows) {
-      const uplift = await upliftFor(s);
-      const hours = +(s.actual_hours ?? s.hours);
-      const charge = +(hours * +s.charge_rate * uplift).toFixed(2);
-      const pay = +(hours * +s.pay_rate * uplift).toFixed(2);
-      // employer's NI applies to PAYE workers only
-      const ni = s.engagement_type === 'ltd' ? 0 : +(pay * niPct).toFixed(2);
-      lines.push({ shift_id: s.id, date: s.shift_date, worker: s.worker_name, client: s.client_name,
-        hours, charge, pay, ni, fee: payrollFee, margin: +(charge - pay - ni - payrollFee).toFixed(2) });
+      const m = await marginForShift(s, { engagement_type: s.engagement_type });
+      lines.push({
+        shift_id: s.id, date: isoDate(s.shift_date), worker: s.worker_name, client: s.client_name, client_id: s.cid,
+        engagement: s.engagement_type_at_approval ?? s.engagement_type, basis: m.basis, problems: m.problems ?? [],
+        hours: s.paid_hours ?? s.actual_hours ?? s.hours, uplift: m.uplift_rule, multiplier: m.uplift_multiplier,
+        charge: fromPence(m.charge_amount_pence), pay: fromPence(m.pay_amount_pence), ni: fromPence(m.employer_ni_pence),
+        fee: fromPence(m.bureau_fee_pence), margin: fromPence(m.margin_pence),
+        _p: { charge: m.charge_amount_pence ?? 0, pay: m.pay_amount_pence ?? 0, ni: m.employer_ni_pence ?? 0, fee: m.bureau_fee_pence ?? 0, margin: m.margin_pence ?? 0 },
+      });
     }
-    const totals = lines.reduce((a, l) => ({
-      charge: +(a.charge + l.charge).toFixed(2), pay: +(a.pay + l.pay).toFixed(2),
-      ni: +(a.ni + l.ni).toFixed(2), fee: +(a.fee + l.fee).toFixed(2), margin: +(a.margin + l.margin).toFixed(2),
-    }), { charge: 0, pay: 0, ni: 0, fee: 0, margin: 0 });
-    res.json({ from, to, lines, totals });
+    const agg = (ls) => {
+      const t = ls.reduce((a, l) => ({ charge: a.charge + l._p.charge, pay: a.pay + l._p.pay, ni: a.ni + l._p.ni, fee: a.fee + l._p.fee, margin: a.margin + l._p.margin }),
+        { charge: 0, pay: 0, ni: 0, fee: 0, margin: 0 });
+      return { charge: fromPence(t.charge), pay: fromPence(t.pay), ni: fromPence(t.ni), fee: fromPence(t.fee), margin: fromPence(t.margin),
+        margin_pct: t.charge ? ((t.margin / t.charge) * 100).toFixed(1) : null,
+        shifts: ls.length, actual: ls.filter((l) => l.basis === 'actual').length,
+        estimated: ls.filter((l) => l.basis === 'estimated').length, unavailable: ls.filter((l) => l.basis === 'unavailable').length };
+    };
+    const byClient = {};
+    for (const l of lines) (byClient[l.client] ??= []).push(l);
+    const [niPct, feePaye, feeLtd, precedence] = await Promise.all([
+      getSetting('employers_ni_pct'), getSetting('bureau_fee_paye_per_shift'), getSetting('bureau_fee_ltd_per_shift'), getSetting('uplift_precedence')]);
+    res.json({
+      from, to,
+      assumptions: { employers_ni_pct: niPct, bureau_fee_paye_per_shift: feePaye, bureau_fee_ltd_per_shift: feeLtd, uplift_precedence: precedence,
+        note: 'Actual = frozen at approval. Estimated = computed from current settings for unapproved shifts. Unavailable = missing rate/hours.' },
+      totals: agg(lines),
+      by_client: Object.entries(byClient).map(([client, ls]) => ({ client, ...agg(ls) })).sort((a, b) => +b.margin - +a.margin),
+      lines: lines.map(({ _p, ...l }) => l),
+    });
+  } catch (e) { next(e); }
+});
+
+// How a shift's money was derived (finance sees amounts; others see rule only).
+r.get('/shifts/:id/financials', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT s.*, c.engagement_type FROM shifts s JOIN candidates c ON c.id = s.candidate_id WHERE s.id = $1`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    const s = rows[0];
+    const m = await marginForShift(s, { engagement_type: s.engagement_type });
+    const live = await resolveUplift(s);
+    const finance = ['admin', 'finance'].includes(req.account?.accessRole);
+    res.json({
+      basis: m.basis, uplift_rule: m.uplift_rule, uplift_multiplier: m.uplift_multiplier, live_uplift: live,
+      hours: s.paid_hours ?? s.actual_hours ?? s.hours, snapshot: finance ? s.financial_snapshot : null,
+      ...(finance ? { pay: fromPence(m.pay_amount_pence), charge: fromPence(m.charge_amount_pence), ni: fromPence(m.employer_ni_pence), fee: fromPence(m.bureau_fee_pence), margin: fromPence(m.margin_pence) } : {}),
+    });
   } catch (e) { next(e); }
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import {
@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { fmtDate, daysUntil } from '../lib/format';
 import { ComplianceDoc } from '../lib/types';
 import { Badge, Card, CardHeader, Avatar, Spinner, PageHeader, EmptyState, inputCls, btnPrimary, btnGhost } from '../components/ui';
+import { ImportWizard } from '../components/ImportWizard';
 
 interface TypeStat {
   type: string;
@@ -66,7 +67,6 @@ export default function Compliance() {
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
-  const csvInput = useRef<HTMLInputElement>(null);
 
   const load = () => api.get<Overview>('/compliance/overview').then(setData);
   useEffect(() => { load(); }, []);
@@ -88,13 +88,7 @@ export default function Compliance() {
     setNotice(`${res.queued} worker reminder${res.queued === 1 ? '' : 's'} queued in Communications${res.digestSent ? ' plus the compliance digest' : ''}.`);
   };
 
-  const importTraining = async (file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    const res = await api.upload<{ imported: number; skipped: string[]; rows: number }>('/compliance/import-training', form);
-    setNotice(`Training import: ${res.imported} record${res.imported === 1 ? '' : 's'} imported, ${res.skipped.length} skipped.`);
-    load();
-  };
+  const [importOpen, setImportOpen] = useState(false);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -122,20 +116,14 @@ export default function Compliance() {
   return (
     <div>
       <PageHeader title="Compliance" subtitle="DBS, NMC PIN, right-to-work and training documents across all candidates.">
-        <button className={btnGhost} onClick={() => csvInput.current?.click()}>
+        <button className={btnGhost} onClick={() => setImportOpen(true)}>
           <FileUp className="h-4 w-4" /> Import training CSV
         </button>
         <button className={btnPrimary} onClick={sendReminders}>
           <BellRing className="h-4 w-4" /> Send expiry reminders
         </button>
       </PageHeader>
-      <input
-        ref={csvInput}
-        type="file"
-        accept=".csv,text/csv,text/plain"
-        className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) importTraining(f); e.target.value = ''; }}
-      />
+      <ImportWizard open={importOpen} onClose={() => setImportOpen(false)} onDone={() => { setNotice('Training records imported.'); load(); }} />
       {notice && (
         <div className="mb-4 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-500/10 px-4 py-2.5 text-xs font-medium text-brand-700">
           {notice}

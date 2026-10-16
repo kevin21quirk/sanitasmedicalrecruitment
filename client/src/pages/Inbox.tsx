@@ -305,7 +305,17 @@ function Outbox() {
   const [msgs, setMsgs] = useState<OutboxMessage[] | null>(null);
   const [filter, setFilter] = useState<'queued' | 'sent' | 'all'>('queued');
   const [composing, setComposing] = useState(false);
-  const [cForm, setCForm] = useState({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '' });
+  const [cForm, setCForm] = useState({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '', candidate_id: '', send_now: false });
+  const [workers, setWorkers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+  const [emailProvider, setEmailProvider] = useState(false);
+
+  useEffect(() => { api.get<{ email_configured: boolean }>('/messages/config').then((c) => setEmailProvider(c.email_configured)).catch(() => {}); }, []);
+  useEffect(() => {
+    if (composing && cForm.channel === 'inapp' && !workers.length) {
+      api.get<{ data: { id: number; first_name: string; last_name: string }[] }>('/candidates?limit=100&sort=name&dir=asc')
+        .then((r) => setWorkers(r.data)).catch(() => {});
+    }
+  }, [composing, cForm.channel, workers.length]);
 
   const load = () => {
     const qs = filter === 'all' ? '' : `?status=${filter}`;
@@ -321,11 +331,15 @@ function Outbox() {
 
   const compose = async () => {
     try {
-      const msg = await api.post<OutboxMessage>('/messages', cForm);
+      const msg = await api.post<OutboxMessage>('/messages', {
+        ...cForm,
+        to_contact: cForm.channel === 'inapp' ? null : cForm.to_contact,
+        candidate_id: cForm.channel === 'inapp' ? +cForm.candidate_id : null,
+      });
       setComposing(false);
-      setCForm({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '' });
+      setCForm({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '', candidate_id: '', send_now: false });
       load();
-      const link = msg.wa_link ?? msg.mailto_link;
+      const link = msg.wa_link ?? (msg.status === 'queued' ? msg.mailto_link : null);
       if (link) window.open(link, '_blank');
     } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
   };
@@ -406,20 +420,47 @@ function Outbox() {
                 <select className={inputCls} value={cForm.channel} onChange={(e) => setCForm({ ...cForm, channel: e.target.value })}>
                   <option value="whatsapp">WhatsApp</option>
                   <option value="email">Email</option>
+                  <option value="inapp">In-app message</option>
                 </select>
-                <input className={inputCls} placeholder="Name" value={cForm.to_name} onChange={(e) => setCForm({ ...cForm, to_name: e.target.value })} />
+                {cForm.channel === 'inapp' ? (
+                  <select className={inputCls} value={cForm.candidate_id} onChange={(e) => setCForm({ ...cForm, candidate_id: e.target.value })}>
+                    <option value="">Pick worker…</option>
+                    {workers.map((w) => <option key={w.id} value={w.id}>{w.first_name} {w.last_name}</option>)}
+                  </select>
+                ) : (
+                  <input className={inputCls} placeholder="Name" value={cForm.to_name} onChange={(e) => setCForm({ ...cForm, to_name: e.target.value })} />
+                )}
               </div>
-              <input className={inputCls} placeholder={cForm.channel === 'whatsapp' ? 'Mobile number' : 'Email address'}
-                value={cForm.to_contact} onChange={(e) => setCForm({ ...cForm, to_contact: e.target.value })} />
+              {cForm.channel === 'inapp' ? (
+                <p className="rounded-lg bg-brand-500/5 px-3 py-2 text-[11px] text-slate-500">
+                  Delivered to the worker's portal inbox immediately — never sent by email or SMS, so it can safely reference operational detail.
+                </p>
+              ) : (
+                <input className={inputCls} placeholder={cForm.channel === 'whatsapp' ? 'Mobile number' : 'Email address'}
+                  value={cForm.to_contact} onChange={(e) => setCForm({ ...cForm, to_contact: e.target.value })} />
+              )}
               {cForm.channel === 'email' && (
-                <input className={inputCls} placeholder="Subject" value={cForm.subject} onChange={(e) => setCForm({ ...cForm, subject: e.target.value })} />
+                <>
+                  <input className={inputCls} placeholder="Subject" value={cForm.subject} onChange={(e) => setCForm({ ...cForm, subject: e.target.value })} />
+                  {emailProvider && (
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <input type="checkbox" checked={cForm.send_now} onChange={(e) => setCForm({ ...cForm, send_now: e.target.checked })} className="rounded" />
+                      Send automatically via configured email provider (retries on failure)
+                    </label>
+                  )}
+                  {!emailProvider && <p className="text-[11px] text-slate-400">No email provider configured — this creates a mailto link you send yourself.</p>}
+                </>
               )}
               <textarea className={clsx(inputCls, 'resize-none')} rows={4} placeholder="Message…"
                 value={cForm.body} onChange={(e) => setCForm({ ...cForm, body: e.target.value })} />
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button className={btnGhost} onClick={() => setComposing(false)}>Cancel</button>
-              <button className={btnPrimary} disabled={!cForm.to_contact || !cForm.body} onClick={compose}>Create & open</button>
+              <button className={btnPrimary}
+                disabled={!cForm.body || (cForm.channel === 'inapp' ? !cForm.candidate_id : !cForm.to_contact)}
+                onClick={compose}>
+                {cForm.channel === 'inapp' ? 'Send to inbox' : cForm.send_now ? 'Send now' : 'Create & open'}
+              </button>
             </div>
           </div>
         </div>

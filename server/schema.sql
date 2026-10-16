@@ -511,6 +511,83 @@ CREATE TABLE IF NOT EXISTS bank_holidays (
   name TEXT
 );
 
+-- ─── Contracted-scope completion (additive, reversible) ────────────────────
+
+-- A. Manual DBS/NMC recording is staff-entered, not independently verified.
+ALTER TABLE register_checks ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual_staff'; -- manual_staff only in this phase
+ALTER TABLE register_checks ADD COLUMN IF NOT EXISTS review_due DATE;                            -- next review/renewal date
+
+-- A. Spreadsheet import batches (preview → commit) with per-row outcomes.
+CREATE TABLE IF NOT EXISTS import_batches (
+  id          SERIAL PRIMARY KEY,
+  kind        TEXT NOT NULL DEFAULT 'training',
+  filename    TEXT,
+  mapping     JSONB NOT NULL DEFAULT '{}',
+  row_count   INT NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'preview',  -- preview | committed | discarded
+  summary     JSONB NOT NULL DEFAULT '{}',
+  rows        JSONB NOT NULL DEFAULT '[]',      -- parsed rows with validation outcome
+  created_by  INT REFERENCES users(id),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  committed_at TIMESTAMPTZ
+);
+
+-- D. Financial snapshot frozen at timesheet approval so later rate/uplift
+--    changes never rewrite historical pay, charge or margin (pence integers).
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS uplift_rule        TEXT;            -- none | night | weekend | bank_holiday
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS uplift_multiplier  NUMERIC(5,3);
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS paid_hours         NUMERIC(5,2);
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS pay_amount_pence   BIGINT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS charge_amount_pence BIGINT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS employer_ni_pence  BIGINT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS bureau_fee_pence   BIGINT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS engagement_type_at_approval TEXT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS financial_snapshot JSONB;          -- inputs used (rates, settings) for audit
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS payroll_export_id  INT;
+
+-- E. Payroll export runs — one row per bureau run; shifts reference the run so
+--    a shift cannot be exported twice.
+CREATE TABLE IF NOT EXISTS payroll_exports (
+  id            SERIAL PRIMARY KEY,
+  engagement    TEXT NOT NULL,                 -- paye | ltd
+  period_from   DATE NOT NULL,
+  period_to     DATE NOT NULL,
+  shift_count   INT NOT NULL DEFAULT 0,
+  total_pence   BIGINT NOT NULL DEFAULT 0,
+  rejected      JSONB NOT NULL DEFAULT '[]',   -- [{shift_id, reasons[]}]
+  format        TEXT NOT NULL DEFAULT 'provisional-v1',
+  created_by    INT REFERENCES users(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'shifts_payroll_export_fk') THEN
+    ALTER TABLE shifts ADD CONSTRAINT shifts_payroll_export_fk
+      FOREIGN KEY (payroll_export_id) REFERENCES payroll_exports(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- G. Email delivery tracking + in-app inbox.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attempts     INT NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS last_error   TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS provider_id  TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at      TIMESTAMPTZ;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS to_account_id INT REFERENCES accounts(id) ON DELETE SET NULL; -- in-app recipient
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS from_account_id INT REFERENCES accounts(id) ON DELETE SET NULL;
+
+-- H. Audit log is append-only at the database level too. The FK to accounts is
+-- dropped: ON DELETE SET NULL would rewrite audit history (which the trigger
+-- rightly forbids). actor_name is stored, so the column alone is sufficient.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_account_id_fkey;
+CREATE OR REPLACE FUNCTION audit_log_immutable() RETURNS trigger AS $$
+BEGIN RAISE EXCEPTION 'audit_log is append-only'; END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS audit_log_no_update ON audit_log;
+CREATE TRIGGER audit_log_no_update BEFORE UPDATE OR DELETE ON audit_log
+  FOR EACH ROW EXECUTE FUNCTION audit_log_immutable();
+
+CREATE INDEX IF NOT EXISTS idx_messages_to_account ON messages(to_account_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_shifts_payroll_export ON shifts(payroll_export_id);
+
 CREATE INDEX IF NOT EXISTS idx_candidates_status   ON candidates(status);
 CREATE INDEX IF NOT EXISTS idx_candidates_role     ON candidates(role);
 CREATE INDEX IF NOT EXISTS idx_compdocs_candidate  ON compliance_documents(candidate_id);

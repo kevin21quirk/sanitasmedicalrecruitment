@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
-import { canSeeOH } from '../lib/auth.js';
+import { canSeeOH, canEditCompliance } from '../lib/auth.js';
+
+const compGuard = (req, res, next) =>
+  canEditCompliance(req.account) ? next() : res.status(403).json({ error: 'Compliance records can only be changed by office/compliance staff' });
 import { upload, storeFile, replacePhoto } from '../lib/files.js';
 import { workerComplianceFor, docHealth } from '../lib/compliance.js';
 
@@ -168,8 +171,9 @@ r.post('/:id/activities', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Compliance docs for candidate
-r.post('/:id/documents', async (req, res, next) => {
+// Compliance docs for candidate — recording a check is staff-entered data, so
+// finance-role users are excluded (A/H least-privilege).
+r.post('/:id/documents', compGuard, async (req, res, next) => {
   try {
     const { type, reference_no, status = 'pending', issue_date, expiry_date, verified_by, notes, dbs_update_service } = req.body;
     const { rows } = await query(
@@ -182,7 +186,7 @@ r.post('/:id/documents', async (req, res, next) => {
 });
 
 // Upload a file against a compliance document (or create the doc with it).
-r.post('/:id/documents/upload', upload.single('file'), async (req, res, next) => {
+r.post('/:id/documents/upload', compGuard, upload.single('file'), async (req, res, next) => {
   try {
     const { type, reference_no, issue_date, expiry_date, document_id } = req.body;
     const file = req.file
@@ -250,13 +254,15 @@ r.delete('/:id/oh/:ohId', ohGuard, async (req, res, next) => {
 });
 
 // ─── Register checks (2.6 DBS Update Service / 2.7 NMC) ──────────────────
-r.post('/:id/register-checks', async (req, res, next) => {
+// Manual recording of a DBS/NMC check (A) — source is always 'manual_staff';
+// the app never claims independent verification of the external register.
+r.post('/:id/register-checks', compGuard, async (req, res, next) => {
   try {
-    const { register, identifier, result = 'clear', notes } = req.body;
+    const { register, identifier, result = 'clear', notes, review_due } = req.body;
     const { rows } = await query(
-      `INSERT INTO register_checks (candidate_id, register, identifier, result, checked_by, notes)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.params.id, register, identifier, result, req.account?.userId, notes]);
+      `INSERT INTO register_checks (candidate_id, register, identifier, result, checked_by, notes, source, review_due)
+       VALUES ($1,$2,$3,$4,$5,$6,'manual_staff',$7) RETURNING *`,
+      [req.params.id, register, identifier, result, req.account?.userId, notes, review_due || null]);
     // stamp the matching document's check date + result
     const docType = register === 'nmc' ? 'NMC PIN' : 'DBS Enhanced';
     await query(

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { upload, replacePhoto } from '../lib/files.js';
+import { workerComplianceFor } from '../lib/compliance.js';
 
 const r = Router();
 
@@ -131,6 +132,27 @@ r.put('/:id/requirements', async (req, res, next) => {
     await audit(req, 'requirements.updated', 'client', +req.params.id, { count: items.length });
     const { rows } = await query(`SELECT * FROM client_requirements WHERE client_id = $1 ORDER BY doc_type`, [req.params.id]);
     res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// ─── Care-home compliance board — placeable workers for THIS site (2.3/2.4) ─
+// Runs the per-candidate × per-site matrix so staff can see at a glance who can
+// be booked here and exactly why the others can't. Staff-only (portal accounts
+// never reach this router).
+r.get('/:id/compliance-board', async (req, res, next) => {
+  try {
+    const { rows: cands } = await query(
+      `SELECT id, first_name, last_name, role, status, suspended, photo_file_id
+       FROM candidates WHERE erased_at IS NULL ORDER BY last_name, first_name`);
+    const workers = [];
+    let okCount = 0;
+    for (const c of cands) {
+      const { ok, gaps } = await workerComplianceFor(c.id, req.params.id);
+      if (ok) okCount++;
+      else workers.push({ ...c, gaps });
+    }
+    const placeable = cands.filter((c) => !workers.some((w) => w.id === c.id));
+    res.json({ placeable, blocked: workers, total: cands.length, compliant: okCount });
   } catch (e) { next(e); }
 });
 

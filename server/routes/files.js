@@ -30,6 +30,11 @@ r.get('/:id/download', async (req, res, next) => {
     if (file.owner_type === 'oh' && !(isStaff && canSeeOH(acc)) && !isOwnerWorker) {
       return res.status(403).json({ error: 'Restricted record' });
     }
+    // Compliance document files: finance-role staff may read financial data but
+    // not right-to-work/DBS paperwork (H least-privilege).
+    if (file.owner_type === 'candidate' && isStaff && acc.accessRole === 'finance') {
+      return res.status(403).json({ error: 'Compliance documents are restricted' });
+    }
     if (!isStaff && !isOwnerWorker) return res.status(403).json({ error: 'Not authorised' });
 
     await audit(req, 'file.downloaded', 'file', file.id, { filename: file.filename });

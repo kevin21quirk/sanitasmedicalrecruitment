@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
-import { CalendarDays, FileText, LayoutDashboard, User2, Download, PenLine } from 'lucide-react';
+import { CalendarDays, FileText, LayoutDashboard, User2, Download, PenLine, Inbox } from 'lucide-react';
 import { api } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
 import { Availability, Offer, OhRecord, ComplianceDoc } from '../../lib/types';
@@ -12,6 +12,7 @@ const PAGES = [
   { to: '/', label: 'My shifts', icon: LayoutDashboard, end: true },
   { to: '/availability', label: 'Availability', icon: CalendarDays },
   { to: '/documents', label: 'My documents', icon: FileText },
+  { to: '/messages', label: 'Messages', icon: Inbox },
   { to: '/details', label: 'My details', icon: User2 },
 ];
 
@@ -349,6 +350,48 @@ function MyDetails() {
   );
 }
 
+interface PortalMessage {
+  id: number; channel: string; subject: string | null; body: string;
+  created_at: string; read_at: string | null; from_email: string | null;
+}
+
+function MyMessages() {
+  const [rows, setRows] = useState<PortalMessage[] | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const load = () => api.get<PortalMessage[]>('/portal/me/messages').then(setRows).catch(() => setRows([]));
+  useEffect(() => { load(); }, []);
+  const open = async (m: PortalMessage) => {
+    setOpenId(openId === m.id ? null : m.id);
+    if (!m.read_at) { await api.post(`/portal/me/messages/${m.id}/read`, {}); load(); }
+  };
+  return (
+    <Card>
+      <CardHeader title="Messages" subtitle="Secure messages from the office — nothing personal is emailed or texted" />
+      {!rows ? <p className="px-5 pb-4 text-xs text-slate-400">Loading…</p>
+        : !rows.length ? <EmptyState icon={<Inbox className="h-5 w-5" />} title="No messages yet" />
+        : (
+          <ul className="divide-y divide-slate-200/50">
+            {rows.map((m) => (
+              <li key={m.id}>
+                <button className="w-full px-5 py-3 text-left" onClick={() => open(m)}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className={m.read_at ? 'text-sm text-ink' : 'text-sm font-semibold text-ink'}>
+                      {!m.read_at && <span className="mr-2 inline-block h-2 w-2 rounded-full bg-brand-500" />}
+                      {m.subject ?? 'Message from Sanitas'}
+                    </p>
+                    <span className="shrink-0 text-[11px] text-slate-400">{fmtDate(m.created_at)}</span>
+                  </div>
+                  {openId !== m.id && <p className="mt-0.5 truncate text-xs text-slate-500">{m.body}</p>}
+                </button>
+                {openId === m.id && <p className="whitespace-pre-wrap bg-brand-500/5 px-5 py-3 text-sm text-slate-700">{m.body}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+    </Card>
+  );
+}
+
 export default function WorkerPortal() {
   return (
     <PortalShell title="Worker portal" pages={PAGES}>
@@ -356,6 +399,7 @@ export default function WorkerPortal() {
         <Route path="/" element={<MyShifts />} />
         <Route path="/availability" element={<MyAvailability />} />
         <Route path="/documents" element={<MyDocuments />} />
+        <Route path="/messages" element={<MyMessages />} />
         <Route path="/details" element={<MyDetails />} />
       </Routes>
     </PortalShell>

@@ -361,4 +361,23 @@ r.get('/client/timesheets', requirePortal('client'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ─── In-app inbox (G) — messages addressed to this account ─────────────────
+r.get('/me/messages', requirePortal('worker', 'client', 'supervisor'), async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT m.id, m.channel, m.subject, m.body, m.created_at, m.read_at, a.email AS from_email
+       FROM messages m LEFT JOIN accounts a ON a.id = m.from_account_id
+       WHERE m.to_account_id = $1 ORDER BY m.created_at DESC LIMIT 100`, [req.account.id]);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+r.post('/me/messages/:id/read', requirePortal('worker', 'client', 'supervisor'), async (req, res, next) => {
+  try {
+    await query(`UPDATE messages SET read_at = now() WHERE id = $1 AND to_account_id = $2 AND read_at IS NULL`,
+      [req.params.id, req.account.id]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 export default r;

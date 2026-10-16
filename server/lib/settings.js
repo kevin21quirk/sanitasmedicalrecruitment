@@ -11,10 +11,16 @@ export const DEFAULTS = {
   night_uplift: 1.15,
   weekend_uplift: 1.25,
   bank_holiday_uplift: 1.5,
-  // 6.12 margin model
-  employers_ni_pct: 15,
-  employers_ni_threshold_weekly: 96,
-  payroll_fee_per_worker_week: 3.5,
+  // 6.7 precedence when several uplifts apply. 'highest' = only the largest
+  // multiplier is used (bank holiday > weekend > night). 'stack' would multiply
+  // them together. DECISION PENDING with project owner — see HANDOVER.md.
+  uplift_precedence: 'highest',
+  // 6.12 margin model — PROVISIONAL assumptions, documented in HANDOVER.md
+  employers_ni_pct: 15,              // employer NI on PAYE pay above threshold
+  employers_ni_threshold_weekly: 96, // £/week secondary threshold (not yet applied per-shift — see HANDOVER)
+  bureau_fee_paye_per_shift: 3.5,    // £ per shift, PAYE bureau
+  bureau_fee_ltd_per_shift: 2.0,     // £ per shift, Ltd-company bureau
+  payroll_fee_per_worker_week: 3.5,  // legacy key kept for compatibility
   // 2.2 reminder windows (days before expiry) + monthly digest toggle
   reminder_days: [60, 30, 14, 7],
   monthly_digest: true,

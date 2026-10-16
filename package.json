@@ -9,7 +9,9 @@
     "dev:client": "npm run dev --prefix client",
     "db:migrate": "npm run migrate --prefix server",
     "db:seed": "npm run seed --prefix server",
-    "build": "npm run build --prefix client"
+    "build": "npm run build --prefix client",
+    "test": "npm test --prefix server",
+    "typecheck": "cd client && npx tsc --noEmit"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

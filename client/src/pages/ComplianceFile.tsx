@@ -103,7 +103,10 @@ export default function ComplianceFile() {
 
       {!!data.register_checks.length && (
         <section className="mb-6">
-          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">Register verifications</h2>
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">
+            Register checks
+            <span className="ml-2 text-[10px] font-normal normal-case text-slate-400">recorded by staff — not independently verified by this system</span>
+          </h2>
           <table className="w-full text-sm">
             <tbody>
               {data.register_checks.map((r) => (
@@ -111,7 +114,7 @@ export default function ComplianceFile() {
                   <td className="w-44 py-1.5 text-xs uppercase text-slate-500">{r.register === 'nmc' ? 'NMC' : 'DBS Update Service'}</td>
                   <td className="py-1.5 text-xs text-slate-600">{r.identifier ?? '—'}</td>
                   <td className="py-1.5 text-xs text-slate-600">{fmtDateTime(r.checked_at)}</td>
-                  <td className="py-1.5"><Badge value={r.result === 'clear' ? 'valid' : r.result === 'lapsed' ? 'expired' : 'pending'} label={r.result} /></td>
+                  <td className="py-1.5"><Badge value={r.result === 'clear' ? 'valid' : r.result === 'lapsed' ? 'expired' : 'pending'} label={`${r.result} (staff-recorded)`} /></td>
                 </tr>
               ))}
             </tbody>

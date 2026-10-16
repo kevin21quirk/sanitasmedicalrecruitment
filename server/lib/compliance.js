@@ -49,7 +49,7 @@ export async function workerComplianceFor(candidateId, clientId) {
   for (const d of docs) {
     const cur = byType.get(d.type);
     // keep the "best" document per type
-    if (!cur || (cur.health !== 'valid' && docHealth(d) === 'valid')) byType.set(d.type, d);
+    if (!cur || (docHealth(cur) !== 'valid' && docHealth(d) === 'valid')) byType.set(d.type, d);
   }
   for (const type of required) {
     const doc = byType.get(type);
