@@ -11,7 +11,7 @@ import { setSetting } from '../lib/settings.js';
 
 let server, base;
 const cookies = {};
-const fx = { clients: [], candidates: [], shifts: [], accounts: [], batches: [], requests: [], payrollRuns: [], reqs: [] };
+const fx = { clients: [], candidates: [], shifts: [], accounts: [], users: [], batches: [], requests: [], payrollRuns: [], reqs: [] };
 
 const nextDay = (dow) => { // next date with this day-of-week (0=Sun)
   const d = new Date(); d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7 || 7));
@@ -76,6 +76,13 @@ async function purgeTestData() {
   }
   if (clientIds.length) await query(`DELETE FROM clients WHERE id = ANY($1::int[])`, [clientIds]);
   await query(`DELETE FROM import_batches WHERE filename = 'pasted.csv'`, []);
+  // staff fixtures from a failed run (accounts already removed by email pattern above)
+  const { rows: tu } = await query(`SELECT id FROM users WHERE email LIKE 'test-staff-%@example.invalid'`);
+  if (tu.length) {
+    const uids = tu.map((r) => r.id);
+    await query(`DELETE FROM messages WHERE created_by = ANY($1::int[])`, [uids]);
+    await query(`DELETE FROM users WHERE id = ANY($1::int[])`, [uids]);
+  }
 }
 async function addCandidate(tag, { engagement = 'paye', payrollRef = null, docs = BASE_DOCS } = {}) {
   const { rows } = await query(
@@ -97,18 +104,22 @@ async function addClient(tag) {
 before(async () => {
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}/api`;
-  // Staff fixture accounts: force a known password so UI-side resets can't break the suite.
-  const staffPw = hashPassword('sanitas123');
-  await query(
-    `UPDATE accounts SET password_hash = $1, must_reset = FALSE
-     WHERE email = ANY($2::text[])`,
-    [staffPw, ['jill@sanitasmedicalrecruitment.co.uk', 'sam@sanitasmedicalrecruitment.co.uk',
-               'amelia@sanitasmedicalrecruitment.co.uk', 'james@sanitasmedicalrecruitment.co.uk']]);
-  cookies.admin = await login('jill@sanitasmedicalrecruitment.co.uk', 'sanitas123');
-  cookies.finance = await login('sam@sanitasmedicalrecruitment.co.uk', 'sanitas123');
-  cookies.compliance = await login('amelia@sanitasmedicalrecruitment.co.uk', 'sanitas123');
-  cookies.office = await login('james@sanitasmedicalrecruitment.co.uk', 'sanitas123');
   await purgeTestData();
+  // Dedicated TEST staff accounts — never touch real seeded accounts.
+  const staffPw = hashPassword('sanitas123');
+  for (const [role, name] of [['admin', 'TEST Admin'], ['finance', 'TEST Finance'],
+                              ['compliance', 'TEST Compliance'], ['office', 'TEST Office']]) {
+    const email = `test-staff-${role}@example.invalid`;
+    const u = await query(
+      `INSERT INTO users (name, email, role, initials, color, access_role) VALUES ($1,$2,'Tester','TT','#64748b',$3) RETURNING id`,
+      [name, email, role]);
+    fx.users.push(u.rows[0].id);
+    const a = await query(
+      `INSERT INTO accounts (kind, user_id, email, password_hash) VALUES ('staff',$1,$2,$3) RETURNING id`,
+      [u.rows[0].id, email, staffPw]);
+    fx.accounts.push(a.rows[0].id);
+    cookies[role] = await login(email, 'sanitas123');
+  }
 
   // deterministic financial assumptions for the test run
   await setSetting('weekend_uplift', 1.25);
@@ -160,6 +171,10 @@ after(async () => {
     }
     if (fx.candidates.length) await query(`DELETE FROM candidates WHERE id = ANY($1::int[])`, [fx.candidates]);
     if (fx.clients.length) await query(`DELETE FROM clients WHERE id = ANY($1::int[])`, [fx.clients]);
+    if (fx.users.length) {
+      await query(`DELETE FROM messages WHERE created_by = ANY($1::int[])`, [fx.users]);
+      await query(`DELETE FROM users WHERE id = ANY($1::int[])`, [fx.users]);
+    }
   } finally {
     server.close();
     await pool.end();
