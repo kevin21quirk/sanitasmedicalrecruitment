@@ -6,7 +6,8 @@ import { canSeeOH, canEditCompliance } from '../lib/auth.js';
 const compGuard = (req, res, next) =>
   canEditCompliance(req.account) ? next() : res.status(403).json({ error: 'Compliance records can only be changed by office/compliance staff' });
 import { upload, storeFile, replacePhoto } from '../lib/files.js';
-import { workerComplianceFor, docHealth } from '../lib/compliance.js';
+import { workerComplianceFor, docHealth, requiredDocsFor } from '../lib/compliance.js';
+import { isoDate } from '../lib/dates.js';
 
 const r = Router();
 
@@ -67,6 +68,14 @@ r.get('/stats', async (_req, res, next) => {
         COUNT(*) FILTER (WHERE registered_at > now() - interval '30 days') AS new_30d
       FROM candidates`);
     res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// Required-document list for a role (before the candidate exists — used by the
+// add-worker flow). Baseline set plus role extras; no client site rules.
+r.get('/requirements', async (req, res, next) => {
+  try {
+    res.json(await requiredDocsFor({ role: req.query.role || '' }, null));
   } catch (e) { next(e); }
 });
 
@@ -275,6 +284,53 @@ r.post('/:id/register-checks', compGuard, async (req, res, next) => {
 });
 
 // ─── Per-client compliance check (2.4 driver; also used by allocation UI) ──
+// Required-document checklist for this worker with live per-item status —
+// baseline + role extras, optionally including a client site's rules.
+r.get('/:id/required-docs', async (req, res, next) => {
+  try {
+    const { rows: cands } = await query(
+      `SELECT id, role FROM candidates WHERE id = $1`, [req.params.id]);
+    const cand = cands[0];
+    if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+    const clientId = req.query.client_id ? +req.query.client_id : null;
+    const required = await requiredDocsFor(cand, clientId);
+    const { rows: docs } = await query(
+      `SELECT id, type, status, expiry_date, file_id FROM compliance_documents WHERE candidate_id = $1`,
+      [req.params.id]);
+    const byType = new Map();
+    for (const d of docs) {
+      const cur = byType.get(d.type);
+      if (!cur || (docHealth(cur) !== 'valid' && docHealth(d) === 'valid')) byType.set(d.type, d);
+    }
+    res.json(required.map((type) => {
+      const doc = byType.get(type);
+      return {
+        type,
+        doc_id: doc?.id ?? null,
+        status: doc ? docHealth(doc) : 'missing',
+        expiry_date: doc?.expiry_date ? isoDate(doc.expiry_date) : null,
+      };
+    }));
+  } catch (e) { next(e); }
+});
+
+// Logged when staff finish creating a worker without recording every required
+// document — keeps the skip auditable rather than silent.
+r.post('/:id/onboarding-deferred', async (req, res, next) => {
+  try {
+    const { rows: cands } = await query(`SELECT * FROM candidates WHERE id = $1`, [req.params.id]);
+    const cand = cands[0];
+    if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+    const required = await requiredDocsFor(cand, null);
+    const { rows: docs } = await query(
+      `SELECT DISTINCT type FROM compliance_documents WHERE candidate_id = $1`, [req.params.id]);
+    const present = new Set(docs.map((d) => d.type));
+    await audit(req, 'candidate.onboarding_deferred', 'candidate', cand.id,
+      { missing: required.filter((t) => !present.has(t)) });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 r.get('/:id/compliance/:clientId', async (req, res, next) => {
   try {
     const result = await workerComplianceFor(+req.params.id, +req.params.clientId);

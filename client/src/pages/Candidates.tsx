@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  AlertTriangle, Briefcase, Clock3, Download, LayoutGrid, List, Plus, Search, Star, UserCheck, UserPlus, Users,
+  AlertTriangle, Briefcase, CircleCheck, Clock3, Download, FileWarning, LayoutGrid, List, Plus, Search, Star, UserCheck, UserPlus, Users,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
@@ -49,7 +49,15 @@ export default function Candidates() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [created, setCreated] = useState<Candidate | null>(null); // step 2: photo
+  const [created, setCreated] = useState<Candidate | null>(null);
+  const [step, setStep] = useState<'form' | 'docs' | 'photo'>('form');
+  const [reqs, setReqs] = useState<string[]>([]);
+  const [recorded, setRecorded] = useState<Set<string>>(new Set());
+  const [openReq, setOpenReq] = useState<string | null>(null);
+  const [reqForm, setReqForm] = useState<{ issue_date: string; expiry_date: string; reference_no: string; file: File | null }>(
+    { issue_date: '', expiry_date: '', reference_no: '', file: null });
+  const [reqSaving, setReqSaving] = useState(false);
+  const [reqErr, setReqErr] = useState('');
 
   useEffect(() => { api.get<CandidateStats>('/candidates/stats').then(setStats).catch(() => {}); }, []);
   useEffect(() => { api.get<User[]>('/users').then(setUsers).catch(() => {}); }, []);
@@ -89,11 +97,42 @@ export default function Candidates() {
       setForm(emptyForm);
       load();
       api.get<CandidateStats>('/candidates/stats').then(setStats).catch(() => {});
+      const reqList = await api.get<string[]>(`/candidates/requirements?role=${encodeURIComponent(form.role)}`).catch(() => [] as string[]);
+      setReqs(reqList);
+      setRecorded(new Set());
+      setStep(reqList.length ? 'docs' : 'photo');
     } catch (e) { setFormError((e as Error).message); }
     finally { setSaving(false); }
   };
 
-  const closeAdd = () => { setShowAdd(false); setCreated(null); setFormError(null); };
+  const recordReq = async (type: string) => {
+    if (!created) return;
+    setReqSaving(true); setReqErr('');
+    try {
+      const fd = new FormData();
+      fd.append('type', type);
+      if (reqForm.reference_no) fd.append('reference_no', reqForm.reference_no);
+      if (reqForm.issue_date) fd.append('issue_date', reqForm.issue_date);
+      if (reqForm.expiry_date) fd.append('expiry_date', reqForm.expiry_date);
+      if (reqForm.file) fd.append('file', reqForm.file);
+      await api.upload(`/candidates/${created.id}/documents/upload`, fd);
+      setRecorded((s) => new Set(s).add(type));
+      setOpenReq(null);
+      setReqForm({ issue_date: '', expiry_date: '', reference_no: '', file: null });
+    } catch (e) { setReqErr(e instanceof Error ? e.message : 'Could not save'); }
+    finally { setReqSaving(false); }
+  };
+
+  // Leaving the docs step with gaps is logged (candidate.onboarding_deferred).
+  const proceedFromDocs = async () => {
+    if (created) await api.post(`/candidates/${created.id}/onboarding-deferred`, {}).catch(() => {});
+    setStep('photo');
+  };
+
+  const closeAdd = () => {
+    setShowAdd(false); setCreated(null); setFormError(null);
+    setStep('form'); setReqs([]); setRecorded(new Set()); setOpenReq(null); setReqErr('');
+  };
 
   const pages = Math.max(1, Math.ceil(total / limit));
   const ownerOpts = useMemo(() => users.map((u) => ({ value: String(u.id), label: u.name })), [users]);
@@ -244,10 +283,20 @@ export default function Candidates() {
 
       <Modal
         open={showAdd} onClose={closeAdd} size="lg"
-        title={created ? 'Add a profile photo' : 'Add Candidate'}
-        subtitle={created ? 'Optional — you can do this later from the profile.' : 'Core details now; documents and compliance later.'}
+        title={step === 'docs' ? 'Compliance requirements' : created ? 'Add a profile photo' : 'Add Candidate'}
+        subtitle={
+          step === 'docs' ? 'Record what the worker has now — anything left is logged and flagged on their profile.'
+          : created ? 'Optional — you can do this later from the profile.'
+          : 'Core details now; documents and compliance later.'}
         icon={<UserPlus className="h-4 w-4" />}
-        footer={created ? (
+        footer={step === 'docs' ? (
+          <>
+            <button className={btnGhost} onClick={proceedFromDocs}>
+              {reqs.every((t) => recorded.has(t)) ? 'Continue' : 'Skip for now (logged)'}
+            </button>
+            <button className={btnPrimary} onClick={proceedFromDocs}>Continue</button>
+          </>
+        ) : created ? (
           <>
             <button className={btnGhost} onClick={closeAdd}>Skip</button>
             <button className={btnPrimary} onClick={() => { closeAdd(); navigate(`/candidates/${created.id}`); }}>Open profile</button>
@@ -261,7 +310,62 @@ export default function Candidates() {
           </>
         )}
       >
-        {created ? (
+        {step === 'docs' && created ? (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">
+              <span className="font-medium text-ink">{created.first_name} {created.last_name}</span> needs these on file
+              before they can be booked. Record what you have — the rest stays flagged on the profile.
+            </p>
+            <ul className="divide-y divide-slate-200/60 rounded-xl border border-slate-200/70">
+              {reqs.map((t) => {
+                const done = recorded.has(t);
+                const open = openReq === t;
+                return (
+                  <li key={t} className="px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-2 text-sm font-medium text-ink">
+                        {done
+                          ? <CircleCheck className="h-4 w-4 text-emerald-500" />
+                          : <FileWarning className="h-4 w-4 text-amber-500" />}
+                        {t}
+                        {done && <span className="text-[10px] font-semibold uppercase text-emerald-600">recorded</span>}
+                      </p>
+                      {!done && (
+                        <button className="text-xs font-medium text-brand-600 hover:underline"
+                          onClick={() => { setOpenReq(open ? null : t); setReqErr(''); }}>
+                          {open ? 'Close' : 'Record'}
+                        </button>
+                      )}
+                    </div>
+                    {open && !done && (
+                      <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-900/[0.03] p-2.5">
+                        <Field label="Issue date"><input type="date" className={inputCls} value={reqForm.issue_date}
+                          onChange={(e) => setReqForm({ ...reqForm, issue_date: e.target.value })} /></Field>
+                        <Field label="Expiry date"><input type="date" className={inputCls} value={reqForm.expiry_date}
+                          onChange={(e) => setReqForm({ ...reqForm, expiry_date: e.target.value })} /></Field>
+                        <Field label="Reference"><input className={inputCls} value={reqForm.reference_no}
+                          onChange={(e) => setReqForm({ ...reqForm, reference_no: e.target.value })} /></Field>
+                        <Field label="Document file" hint="optional">
+                          <input type="file" className="w-full text-xs text-slate-500 file:mr-2 file:rounded-lg file:border-0 file:bg-brand-500/10 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-brand-700"
+                            onChange={(e) => setReqForm({ ...reqForm, file: e.target.files?.[0] ?? null })} />
+                        </Field>
+                        <div className="col-span-2 flex justify-end">
+                          <button className={btnPrimary} disabled={reqSaving} onClick={() => recordReq(t)}>
+                            {reqSaving ? 'Saving…' : 'Save record'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {reqErr && <p className="text-xs font-medium text-red-600">{reqErr}</p>}
+            <p className="text-[11px] text-slate-400">
+              Records are added as <em>pending</em> — compliance marks them valid after review. Sites may add extra requirements.
+            </p>
+          </div>
+        ) : created ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <PhotoUpload endpoint={`/candidates/${created.id}/photo`} name={`${created.first_name} ${created.last_name}`} photoId={created.photo_file_id}
               onDone={() => api.get<{ photo_file_id: number }>(`/candidates/${created.id}`).then((c) => setCreated({ ...created, photo_file_id: c.photo_file_id })).then(load)} />

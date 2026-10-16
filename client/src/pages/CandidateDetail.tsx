@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, CalendarDays, CircleCheck, Clock3, FileText, Inbox, Mail,
-  MapPin, Pencil, Phone, Plus, Printer, ShieldAlert, ShieldCheck, Star, Upload,
+  AlertTriangle, ArrowLeft, Briefcase, CalendarDays, CircleCheck, Clock3, FileText, Inbox, Mail,
+  MapPin, Pencil, Phone, Plus, Printer, ShieldAlert, ShieldCheck, Star, Upload, XCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
@@ -116,6 +116,7 @@ export default function CandidateDetail() {
 
   const [compCheck, setCompCheck] = useState<null | { ok: boolean; gaps: { type: string; problem: string }[] }>(null);
   const [compClient, setCompClient] = useState('');
+  const [reqDocs, setReqDocs] = useState<{ type: string; doc_id: number | null; status: string; expiry_date: string | null }[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
   const [showEdit, setShowEdit] = useState(false);
@@ -136,6 +137,9 @@ export default function CandidateDetail() {
     api.get<CandidateDetailData>(`/candidates/${id}`)
       .then(setData)
       .catch(() => setNotFound(true));
+    api.get<{ type: string; doc_id: number | null; status: string; expiry_date: string | null }[]>(`/candidates/${id}/required-docs`)
+      .then(setReqDocs)
+      .catch(() => setReqDocs([]));
   }, [id]);
 
   useEffect(() => { setData(null); setNotFound(false); load(); }, [load]);
@@ -465,6 +469,48 @@ export default function CandidateDetail() {
       {/* Compliance */}
       {tab === 'compliance' && (
         <div className="space-y-5">
+          {/* Required-docs checklist — gaps are always visible (2.4) */}
+          {!!reqDocs.length && (
+            <Card className={clsx(reqDocs.some((r) => r.status === 'missing' || r.status === 'expired') && 'ring-1 ring-amber-300/60')}>
+              <CardHeader
+                title="Requirements checklist"
+                subtitle="Baseline + role requirements — sites may add more"
+              />
+              <ul className="divide-y divide-slate-200/50 px-5 py-1">
+                {reqDocs.map((r) => {
+                  const ok = r.status === 'valid';
+                  const warn = !ok && r.status !== 'missing' && r.status !== 'expired';
+                  return (
+                    <li key={r.type} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        {ok
+                          ? <CircleCheck className="h-5 w-5 text-emerald-500" />
+                          : warn
+                            ? <AlertTriangle className="h-5 w-5 text-amber-500" />
+                            : <XCircle className="h-5 w-5 text-red-500" />}
+                        <div>
+                          <p className="text-sm font-medium text-ink">{r.type}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {ok ? `Valid${r.expiry_date ? ` · expires ${fmtDate(r.expiry_date)}` : ''}`
+                              : warn ? `${fmtStatus(r.status)}${r.expiry_date ? ` · ${fmtDate(r.expiry_date)}` : ''} — needs attention`
+                              : `${fmtStatus(r.status)} — required before this worker can be booked`}
+                          </p>
+                        </div>
+                      </div>
+                      {!ok && (
+                        <button
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-brand-500/5"
+                          onClick={() => { setDocForm({ type: r.type, status: 'pending', reference_no: '', issue_date: '', expiry_date: '' }); setShowDoc(true); }}
+                        >
+                          <Plus className="h-3 w-3" /> Record
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
           <Card>
             <CardHeader
               title="Compliance Documents"
