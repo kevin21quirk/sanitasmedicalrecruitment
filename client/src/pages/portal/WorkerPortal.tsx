@@ -95,6 +95,7 @@ function MyShifts() {
         </Card>
       )}
 
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
       <Card>
         <CardHeader title="Upcoming shifts" subtitle="Confirm you can attend — details confirmed by the office" />
         {!upcoming.length ? (
@@ -153,6 +154,7 @@ function MyShifts() {
           </ul>
         )}
       </Card>
+      </div>
 
       <Card>
         <CardHeader title="Past shifts & site notes" subtitle="Notes recorded by the site signatory (6.10b)" />

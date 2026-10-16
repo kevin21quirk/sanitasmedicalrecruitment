@@ -23,7 +23,7 @@ export function PortalShell({ title, pages, children }: {
   return (
     <div className="min-h-screen">
       <header className="glass sticky top-0 z-20 !rounded-none !border-x-0 !border-t-0">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-2.5">
             <img src="/sanitaslogo.png" alt="Sanitas" className="h-7 w-auto" />
             <span className="hidden text-xs font-medium text-slate-500 sm:block">{title}</span>
@@ -39,7 +39,7 @@ export function PortalShell({ title, pages, children }: {
             </button>
           </div>
         </div>
-        <nav className={clsx('mx-auto max-w-3xl gap-1 px-4 pb-2 sm:flex', open ? 'flex flex-col' : 'hidden')}>
+        <nav className={clsx('mx-auto max-w-5xl gap-1 px-4 pb-2 sm:flex', open ? 'flex flex-col' : 'hidden')}>
           {pages.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}
               className={({ isActive }) => clsx(
@@ -51,7 +51,7 @@ export function PortalShell({ title, pages, children }: {
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-5 animate-fade-in">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 py-6 animate-fade-in">{children}</main>
     </div>
   );
 }
