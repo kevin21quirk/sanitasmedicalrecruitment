@@ -1,4 +1,5 @@
 import { pool, query } from './db.js';
+import { hashPassword } from './lib/auth.js';
 
 // ---------- deterministic RNG ----------
 let seed = 42;
@@ -89,25 +90,36 @@ const randPhone = () => `07${randInt(100, 999)} ${randInt(100, 999)} ${randInt(1
 // ---------- seed ----------
 async function main() {
   console.log('Clearing existing data...');
-  await query(`TRUNCATE tasks, activities, shifts, placements, vacancies, client_contacts, clients, compliance_documents, candidates, users RESTART IDENTITY CASCADE`);
+  await query(`TRUNCATE tasks, activities, shifts, placements, vacancies, client_contacts, clients,
+    compliance_documents, candidates, users, accounts, sessions, files, registrations, individuals,
+    client_requirements, oh_records, register_checks, availability, shift_requests, offers,
+    candidate_blocks, timesheet_queries, instruction_acks, sign_tokens, invoice_lines, invoices,
+    messages, audit_log, bank_holidays RESTART IDENTITY CASCADE`);
 
-  // Users
+  // Users — access_role drives role-based visibility (8.4)
   const users = [
-    ['Jill Wilkinson', 'jill@sanitasmedicalrecruitment.co.uk', 'Director', 'JW', '#0c56a4'],
-    ['James Oduya', 'james@sanitasmedicalrecruitment.co.uk', 'Senior Recruiter', 'JO', '#1863dc'],
-    ['Priya Kaur', 'priya@sanitasmedicalrecruitment.co.uk', 'Recruiter', 'PK', '#01aef0'],
-    ['Tom Reeves', 'tom@sanitasmedicalrecruitment.co.uk', 'Recruiter', 'TR', '#7bdcb5'],
-    ['Amelia Foster', 'amelia@sanitasmedicalrecruitment.co.uk', 'Compliance Officer', 'AF', '#fcb900'],
+    ['Jill Wilkinson', 'jill@sanitasmedicalrecruitment.co.uk', 'Director', 'JW', '#0c56a4', 'admin'],
+    ['James Oduya', 'james@sanitasmedicalrecruitment.co.uk', 'Senior Recruiter', 'JO', '#1863dc', 'office'],
+    ['Priya Kaur', 'priya@sanitasmedicalrecruitment.co.uk', 'Recruiter', 'PK', '#01aef0', 'office'],
+    ['Tom Reeves', 'tom@sanitasmedicalrecruitment.co.uk', 'Recruiter', 'TR', '#7bdcb5', 'office'],
+    ['Amelia Foster', 'amelia@sanitasmedicalrecruitment.co.uk', 'Compliance Officer', 'AF', '#fcb900', 'compliance'],
+    ['Sam Whitfield', 'sam@sanitasmedicalrecruitment.co.uk', 'Finance', 'SW', '#9b59b6', 'finance'],
   ];
   const userIds = [];
-  for (const [name, email, role, initials, color] of users) {
+  const staffPassword = hashPassword('sanitas123'); // demo staff password
+  for (const [name, email, role, initials, color, accessRole] of users) {
     const r = await query(
-      `INSERT INTO users (name, email, role, initials, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [name, email, role, initials, color]
+      `INSERT INTO users (name, email, role, initials, color, access_role) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [name, email, role, initials, color, accessRole]
     );
-    userIds.push(r.rows[0].id);
+    const uid = r.rows[0].id;
+    userIds.push(uid);
+    await query(
+      `INSERT INTO accounts (kind, user_id, email, password_hash) VALUES ('staff',$1,$2,$3)`,
+      [uid, email, staffPassword]
+    );
   }
-  console.log(`  ${userIds.length} users`);
+  console.log(`  ${userIds.length} users (staff login password: sanitas123)`);
 
   // Candidates
   const candidateIds = [];
@@ -132,8 +144,8 @@ async function main() {
     const r = await query(
       `INSERT INTO candidates (first_name, last_name, email, phone, role, nmc_pin, address, town, postcode,
         status, pay_min, pay_max, preferred_shift, employment_pref, travel_miles, has_transport,
-        source, rating, tags, owner_id, registered_at, last_worked_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING id`,
+        source, rating, tags, owner_id, registered_at, last_worked_at, engagement_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING id`,
       [
         fn, ln,
         `${fn.toLowerCase()}.${ln.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '')}@${pick(['gmail.com', 'outlook.com', 'yahoo.co.uk', 'hotmail.com'])}`,
@@ -149,6 +161,7 @@ async function main() {
         pick([[], [], ['dementia_experience'], ['peg_feeding'], ['tracheostomy'], ['dementia_experience', 'palliative'], ['wound_care'], ['palliative']]),
         pick(userIds.slice(1, 4)), iso(daysAgo(regDaysAgo)),
         lastWorked !== null ? iso(daysAgo(lastWorked)) : null,
+        chance(0.7) ? 'paye' : 'ltd',
       ]
     );
     candidateIds.push(r.rows[0].id);
@@ -360,6 +373,123 @@ async function main() {
     taskCount++;
   }
   console.log(`  ${taskCount} tasks`);
+
+  // Individuals (named service users for one-to-one continuity, 3.7)
+  const INDIVIDUALS = ['Mrs P Ahmed', 'Mr T Bell', 'Mrs J Collins', 'Mr R Donnelly', 'Ms E French',
+    'Mrs K Graham', 'Mr L Hart', 'Mrs M Irving', 'Mr S Jones', 'Mrs A Knight'];
+  const individualIds = [];
+  for (const cid of clientIds.slice(0, 10)) {
+    for (const name of pick([INDIVIDUALS.slice(0, 2), INDIVIDUALS.slice(2, 4), INDIVIDUALS.slice(0, 3)])) {
+      const r = await query(`INSERT INTO individuals (client_id, name) VALUES ($1,$2) RETURNING id`, [cid, name]);
+      individualIds.push(r.rows[0].id);
+    }
+  }
+  console.log(`  ${individualIds.length} individuals`);
+
+  // Per-site compliance requirements (2.3)
+  for (const cid of clientIds.slice(0, 6)) {
+    await query(
+      `INSERT INTO client_requirements (client_id, doc_type, required) VALUES
+       ($1,'PMVA',TRUE), ($1,'First Aid',TRUE) ON CONFLICT DO NOTHING`, [cid]);
+  }
+
+  // Standing instructions on a few clients (4.4)
+  for (const cid of clientIds.slice(0, 4)) {
+    await query(
+      `UPDATE clients SET standing_instructions = $1 WHERE id = $2`,
+      ['Arrive 15 minutes early for handover. Sign in at reception and complete the site documentation folder before starting. Wear Sanitas ID badge at all times.', cid]);
+  }
+
+  // Occupational health records (2.8)
+  const OH_ITEMS = [
+    ['immunisation', 'Hepatitis B'], ['immunisation', 'TB / BCG'], ['immunisation', 'MMR'],
+    ['immunisation', 'Varicella'], ['screening', 'OH fitness-for-work assessment'], ['clearance', 'OH clearance certificate'],
+  ];
+  let ohCount = 0;
+  for (const cid of candidateIds.slice(0, 20)) {
+    for (const [kind, name] of pick([OH_ITEMS.slice(0, 3), OH_ITEMS.slice(3, 6), OH_ITEMS])) {
+      await query(
+        `INSERT INTO oh_records (candidate_id, kind, name, record_date, expiry_date, result)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [cid, kind, name, dateOnly(daysAgo(randInt(60, 700))),
+         chance(0.7) ? dateOnly(daysAhead(randInt(100, 900))) : null,
+         kind === 'immunisation' ? 'complete' : 'cleared']);
+      ohCount++;
+    }
+  }
+  console.log(`  ${ohCount} occupational-health records`);
+
+  // Availability for the next 2 weeks (3.1)
+  let availCount = 0;
+  for (const cid of candidateIds.slice(0, 25)) {
+    for (let j = 0; j < randInt(3, 10); j++) {
+      const d = dateOnly(daysAhead(randInt(0, 14)));
+      const st = pick(['any', 'day', 'night']);
+      await query(
+        `INSERT INTO availability (candidate_id, date, shift_type, status, source)
+         VALUES ($1,$2,$3,$4,$5) ON CONFLICT (candidate_id, date, shift_type) DO NOTHING`,
+        [cid, d, st, chance(0.85) ? 'available' : 'unavailable', chance(0.5) ? 'worker' : 'office']);
+      availCount++;
+    }
+  }
+  console.log(`  ${availCount} availability entries`);
+
+  // Client shift requests (3.0/4.7)
+  let reqCount = 0;
+  for (let i = 0; i < 24; i++) {
+    const cid = pick(clientIds);
+    const past = chance(0.4);
+    await query(
+      `INSERT INTO shift_requests (client_id, date, start_time, end_time, hours, shift_type, role, qty,
+        individual_id, status, urgency, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [cid, dateOnly(past ? daysAgo(randInt(1, 20)) : daysAhead(randInt(0, 10))),
+       pick(['07:30', '20:00', '08:00', '14:00']), pick(['20:00', '07:30', '20:00', '21:30']),
+       pick([7.5, 12, 12, 8]), pick(['day', 'day', 'night']), pick(ROLES), pick([1, 1, 1, 2]),
+       chance(0.5) ? pick(individualIds) : null,
+       pick(['filled', 'filled', 'pending', 'pending', 'cancelled']),
+       chance(0.2) ? 'urgent' : 'normal', pick(['office', 'portal', 'portal'])]);
+    reqCount++;
+  }
+  console.log(`  ${reqCount} shift requests`);
+
+  // Portal accounts: a few workers, client contacts, one supervisor
+  const portalPw = hashPassword('portal123');
+  let portalCount = 0;
+  for (const cid of candidateIds.slice(0, 8)) {
+    const { rows } = await query(`SELECT email FROM candidates WHERE id = $1`, [cid]);
+    if (!rows[0]?.email) continue;
+    await query(
+      `INSERT INTO accounts (kind, candidate_id, email, password_hash) VALUES ('worker',$1,$2,$3)
+       ON CONFLICT (email) DO NOTHING`, [cid, rows[0].email, portalPw]);
+    portalCount++;
+  }
+  const { rows: someContacts } = await query(`SELECT id, client_id, email FROM client_contacts WHERE is_primary LIMIT 4`);
+  for (const ct of someContacts) {
+    await query(
+      `INSERT INTO accounts (kind, client_id, contact_id, email, password_hash) VALUES ('client',$1,$2,$3,$4)
+       ON CONFLICT (email) DO NOTHING`, [ct.client_id, ct.id, ct.email, portalPw]);
+    portalCount++;
+  }
+  await query(
+    `INSERT INTO accounts (kind, client_id, email, password_hash) VALUES ('supervisor',$1,$2,$3)
+     ON CONFLICT (email) DO NOTHING`,
+    [clientIds[0], `rota@${'maplelodgecarehome'}.co.uk`, portalPw]);
+  portalCount++;
+  console.log(`  ${portalCount} portal accounts (password: portal123)`);
+
+  // Bank holidays England & Wales (uplift rules, 6.7)
+  const BH = [
+    ['2025-12-25', 'Christmas Day'], ['2025-12-26', 'Boxing Day'],
+    ['2026-01-01', "New Year's Day"], ['2026-04-03', 'Good Friday'], ['2026-04-06', 'Easter Monday'],
+    ['2026-05-04', 'Early May'], ['2026-05-25', 'Spring'], ['2026-08-31', 'Summer'],
+    ['2026-12-25', 'Christmas Day'], ['2026-12-28', 'Boxing Day (substitute)'],
+  ];
+  for (const [d, n] of BH) {
+    await query(`INSERT INTO bank_holidays (date, name) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [d, n]);
+  }
+  console.log(`  ${BH.length} bank holidays`);
+
   console.log('Seed complete.');
 }
 

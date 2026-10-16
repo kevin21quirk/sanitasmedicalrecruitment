@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import {
   ShieldCheck, ShieldAlert, Clock3, FileClock, FileQuestion,
-  UserX, Search, Check, RotateCcw,
+  UserX, Search, Check, RotateCcw, BellRing, FileUp,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { fmtDate, daysUntil } from '../lib/format';
 import { ComplianceDoc } from '../lib/types';
-import { Badge, Card, CardHeader, Avatar, Spinner, PageHeader, EmptyState, inputCls } from '../components/ui';
+import { Badge, Card, CardHeader, Avatar, Spinner, PageHeader, EmptyState, inputCls, btnPrimary, btnGhost } from '../components/ui';
 
 interface TypeStat {
   type: string;
@@ -59,10 +60,13 @@ function ExpiryCell({ date }: { date: string | null }) {
 }
 
 export default function Compliance() {
+  const { account } = useAuth();
   const [data, setData] = useState<Overview | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [notice, setNotice] = useState('');
+  const csvInput = useRef<HTMLInputElement>(null);
 
   const load = () => api.get<Overview>('/compliance/overview').then(setData);
   useEffect(() => { load(); }, []);
@@ -70,7 +74,7 @@ export default function Compliance() {
   async function act(doc: ComplianceDoc, status: ComplianceDoc['status'], verify = false) {
     setBusyId(doc.id);
     try {
-      await api.patch(`/compliance/documents/${doc.id}`, verify ? { status, verified_by: 5 } : { status });
+      await api.patch(`/compliance/documents/${doc.id}`, verify ? { status, verified_by: account?.userId } : { status });
       await load();
     } catch (e) {
       console.error(e);
@@ -78,6 +82,19 @@ export default function Compliance() {
       setBusyId(null);
     }
   }
+
+  const sendReminders = async () => {
+    const res = await api.post<{ queued: number; digestSent: boolean }>('/compliance/send-reminders', {});
+    setNotice(`${res.queued} worker reminder${res.queued === 1 ? '' : 's'} queued in Communications${res.digestSent ? ' plus the compliance digest' : ''}.`);
+  };
+
+  const importTraining = async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await api.upload<{ imported: number; skipped: string[]; rows: number }>('/compliance/import-training', form);
+    setNotice(`Training import: ${res.imported} record${res.imported === 1 ? '' : 's'} imported, ${res.skipped.length} skipped.`);
+    load();
+  };
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -104,7 +121,27 @@ export default function Compliance() {
 
   return (
     <div>
-      <PageHeader title="Compliance" subtitle="DBS, NMC PIN, right-to-work and training documents across all candidates." />
+      <PageHeader title="Compliance" subtitle="DBS, NMC PIN, right-to-work and training documents across all candidates.">
+        <button className={btnGhost} onClick={() => csvInput.current?.click()}>
+          <FileUp className="h-4 w-4" /> Import training CSV
+        </button>
+        <button className={btnPrimary} onClick={sendReminders}>
+          <BellRing className="h-4 w-4" /> Send expiry reminders
+        </button>
+      </PageHeader>
+      <input
+        ref={csvInput}
+        type="file"
+        accept=".csv,text/csv,text/plain"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) importTraining(f); e.target.value = ''; }}
+      />
+      {notice && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-medium text-brand-700">
+          {notice}
+          <button onClick={() => setNotice('')} className="text-brand-500 hover:text-brand-700">Dismiss</button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">

@@ -5,9 +5,11 @@ import {
   Inbox, Phone, Mail, Users, MessageSquare, FileText, ArrowRightLeft, Send,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { Activity, User, Candidate, Client, Vacancy } from '../lib/types';
-import { Card, CardHeader, Avatar, Spinner, PageHeader, inputCls, btnPrimary } from '../components/ui';
+import { Activity, User, Candidate, Client, Vacancy, Message } from '../lib/types';
+import { Card, CardHeader, Avatar, Spinner, PageHeader, Badge, inputCls, btnPrimary, btnGhost } from '../components/ui';
 import { ActivityFeed } from '../components/ActivityFeed';
+import { fmtDateTime } from '../lib/format';
+import { useAuth } from '../lib/auth';
 
 const TYPE_FILTERS = [
   { key: 'all', label: 'All activity', icon: Inbox },
@@ -41,9 +43,10 @@ interface EntOption {
   sub?: string;
 }
 
-const CURRENT_USER = 2;
-
 export default function InboxPage() {
+  const { account } = useAuth();
+  const CURRENT_USER = account?.userId ?? 0;
+  const [tab, setTab] = useState<'activity' | 'outbox'>('activity');
   const [activities, setActivities] = useState<Activity[] | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -143,9 +146,21 @@ export default function InboxPage() {
       <PageHeader
         title="Communications"
         subtitle={`${activities.length} touchpoints logged · ${calls} calls · ${emails} emails`}
-      />
+      >
+        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+          {(['activity', 'outbox'] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
+                tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+              {t === 'activity' ? 'Activity log' : 'Outbox'}
+            </button>
+          ))}
+        </div>
+      </PageHeader>
 
-      <div className="flex flex-col gap-5 lg:flex-row">
+      {tab === 'outbox' && <Outbox />}
+
+      {tab === 'activity' && (<div className="flex flex-col gap-5 lg:flex-row">
         {/* Filter rail */}
         <div className="w-full shrink-0 lg:w-60">
           <Card>
@@ -275,7 +290,140 @@ export default function InboxPage() {
             </div>
           </Card>
         </div>
-      </div>
+      </div>)}
+    </div>
+  );
+}
+
+interface OutboxMessage extends Message {
+  wa_link: string | null;
+  mailto_link: string | null;
+}
+
+// 4.2/4.3/4.6 — queued notifications with click-to-send wa.me / mailto links.
+function Outbox() {
+  const [msgs, setMsgs] = useState<OutboxMessage[] | null>(null);
+  const [filter, setFilter] = useState<'queued' | 'sent' | 'all'>('queued');
+  const [composing, setComposing] = useState(false);
+  const [cForm, setCForm] = useState({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '' });
+
+  const load = () => {
+    const qs = filter === 'all' ? '' : `?status=${filter}`;
+    api.get<OutboxMessage[]>(`/messages${qs}`).then(setMsgs).catch(() => setMsgs([]));
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [filter]);
+
+  const markSent = async (id: number) => {
+    await api.patch(`/messages/${id}`, { status: 'sent' });
+    load();
+  };
+
+  const compose = async () => {
+    try {
+      const msg = await api.post<OutboxMessage>('/messages', cForm);
+      setComposing(false);
+      setCForm({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '' });
+      load();
+      const link = msg.wa_link ?? msg.mailto_link;
+      if (link) window.open(link, '_blank');
+    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+  };
+
+  const queued = msgs?.filter((m) => m.status === 'queued') ?? [];
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader
+          title="Outbox"
+          subtitle="WhatsApp opens a wa.me link you send from your phone; email opens your mail app — both are logged here (4.6)."
+          action={
+            <div className="flex items-center gap-2">
+              <select className={clsx(inputCls, 'w-32')} value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+                <option value="queued">Queued</option>
+                <option value="sent">Sent</option>
+                <option value="all">All</option>
+              </select>
+              <button className={btnPrimary} onClick={() => setComposing(true)}><Send className="h-3.5 w-3.5" /> Compose</button>
+            </div>
+          }
+        />
+        {!msgs ? <Spinner /> : !msgs.length ? (
+          <p className="px-5 py-6 text-center text-sm text-slate-400">
+            {filter === 'queued' ? 'Nothing waiting — confirmations and reminders land here automatically.' : 'No messages.'}
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-50">
+            {msgs.map((m) => (
+              <li key={m.id} className="px-5 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-medium text-ink">
+                      {m.channel === 'whatsapp' ? <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> : <Mail className="h-3.5 w-3.5 text-brand-500" />}
+                      {m.to_name ?? m.to_contact}
+                      <Badge value={m.status === 'sent' ? 'valid' : m.status === 'queued' ? 'pending' : m.status === 'failed' ? 'expired' : 'done'} />
+                    </p>
+                    {m.subject && <p className="text-xs font-medium text-slate-600">{m.subject}</p>}
+                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500">{m.body}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {m.created_by_name && `${m.created_by_name} · `}{fmtDateTime(m.created_at as unknown as string)}
+                      {m.sent_at && ` · sent ${fmtDateTime(m.sent_at)}`}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    {m.wa_link && (
+                      <a href={m.wa_link} target="_blank" rel="noreferrer" className={btnPrimary}
+                        onClick={() => markSent(m.id)}>
+                        Open WhatsApp
+                      </a>
+                    )}
+                    {m.mailto_link && (
+                      <a href={m.mailto_link} className={btnPrimary} onClick={() => markSent(m.id)}>
+                        Open email
+                      </a>
+                    )}
+                    {m.status === 'queued' && (
+                      <button className="text-[11px] text-slate-400 hover:text-slate-600" onClick={() => markSent(m.id)}>
+                        Mark sent without opening
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!!queued.length && <p className="border-t border-slate-100 px-5 py-2 text-[11px] text-slate-400">{queued.length} queued</p>}
+      </Card>
+
+      {composing && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={() => setComposing(false)}>
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-display text-lg font-semibold">New message</h2>
+            <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <select className={inputCls} value={cForm.channel} onChange={(e) => setCForm({ ...cForm, channel: e.target.value })}>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                </select>
+                <input className={inputCls} placeholder="Name" value={cForm.to_name} onChange={(e) => setCForm({ ...cForm, to_name: e.target.value })} />
+              </div>
+              <input className={inputCls} placeholder={cForm.channel === 'whatsapp' ? 'Mobile number' : 'Email address'}
+                value={cForm.to_contact} onChange={(e) => setCForm({ ...cForm, to_contact: e.target.value })} />
+              {cForm.channel === 'email' && (
+                <input className={inputCls} placeholder="Subject" value={cForm.subject} onChange={(e) => setCForm({ ...cForm, subject: e.target.value })} />
+              )}
+              <textarea className={clsx(inputCls, 'resize-none')} rows={4} placeholder="Message…"
+                value={cForm.body} onChange={(e) => setCForm({ ...cForm, body: e.target.value })} />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className={btnGhost} onClick={() => setComposing(false)}>Cancel</button>
+              <button className={btnPrimary} disabled={!cForm.to_contact || !cForm.body} onClick={compose}>Create & open</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

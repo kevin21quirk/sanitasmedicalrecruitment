@@ -190,6 +190,323 @@ CREATE TABLE IF NOT EXISTS cv_matches (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ─── Operational-system expansion (compliance spec) ─────────────────────────
+
+-- 8.4 role-based access. Staff access roles: admin, office, compliance, finance.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS access_role TEXT NOT NULL DEFAULT 'office';
+
+-- Unified login accounts: staff, workers, client contacts/signatories, site supervisors.
+CREATE TABLE IF NOT EXISTS accounts (
+  id            SERIAL PRIMARY KEY,
+  kind          TEXT NOT NULL,               -- staff | worker | client | supervisor
+  user_id       INT REFERENCES users(id) ON DELETE CASCADE,
+  candidate_id  INT REFERENCES candidates(id) ON DELETE CASCADE,
+  client_id     INT REFERENCES clients(id) ON DELETE CASCADE,
+  contact_id    INT REFERENCES client_contacts(id) ON DELETE CASCADE,
+  email         TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  must_reset    BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  last_login_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- DB-backed sessions so access can be revoked instantly (5.3).
+CREATE TABLE IF NOT EXISTS sessions (
+  token       TEXT PRIMARY KEY,
+  account_id  INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+
+-- System configuration: notification wording, uplift rules, retention periods,
+-- registration custom fields, auto-ranking switch (3.8).
+CREATE TABLE IF NOT EXISTS settings (
+  key    TEXT PRIMARY KEY,
+  value  JSONB NOT NULL
+);
+
+-- Uploaded files, stored in Vercel Blob, downloaded via authenticated proxy.
+CREATE TABLE IF NOT EXISTS files (
+  id           SERIAL PRIMARY KEY,
+  owner_type   TEXT NOT NULL,                -- candidate | document | timesheet | registration | invoice
+  owner_id     INT,
+  filename     TEXT NOT NULL,
+  mime         TEXT,
+  size         INT,
+  blob_url     TEXT,
+  label        TEXT,
+  uploaded_by  INT REFERENCES accounts(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 1.x candidate self-registration (draft → submitted → linked to candidate)
+CREATE TABLE IF NOT EXISTS registrations (
+  id           SERIAL PRIMARY KEY,
+  token        TEXT UNIQUE NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'draft', -- draft | submitted | imported
+  payload      JSONB NOT NULL DEFAULT '{}',
+  candidate_id INT REFERENCES candidates(id) ON DELETE SET NULL,
+  submitted_at TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Candidate record additions (1.1, 1.6, 6.8, 3.5, 8.6)
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS engagement_type TEXT NOT NULL DEFAULT 'paye'; -- paye | ltd
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS next_of_kin_name TEXT;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS next_of_kin_phone TEXT;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS rtw_status TEXT;          -- British citizen, settled, visa (type/expiry)
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS rtw_expiry DATE;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS driving TEXT;             -- drives | car_share | neither
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS uniform_size TEXT;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS willing_client_ids INT[] DEFAULT '{}';
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}';
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS first_choice_since TIMESTAMPTZ;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS erased_at TIMESTAMPTZ;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS payroll_ref TEXT;                -- payroll bureau reference
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS bank_details JSONB;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS billing_email TEXT;                 -- invoices go here
+
+-- Client record additions
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS standing_instructions TEXT;         -- 4.4
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS share_profile_fields JSONB;         -- 4.5 visibility config
+ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS is_signatory BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 3.7 named individuals placed one-to-one (continuity of care)
+CREATE TABLE IF NOT EXISTS individuals (
+  id         SERIAL PRIMARY KEY,
+  client_id  INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  notes      TEXT,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 2.3 required-document lists per client site
+CREATE TABLE IF NOT EXISTS client_requirements (
+  id        SERIAL PRIMARY KEY,
+  client_id INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  doc_type  TEXT NOT NULL,
+  required  BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE (client_id, doc_type)
+);
+
+-- 2.8/2.9 occupational health & immunisation records (restricted visibility)
+CREATE TABLE IF NOT EXISTS oh_records (
+  id           SERIAL PRIMARY KEY,
+  candidate_id INT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  kind         TEXT NOT NULL,                -- immunisation | screening | clearance | fitness
+  name         TEXT NOT NULL,                -- e.g. Hepatitis B, TB, OH clearance
+  record_date  DATE,
+  expiry_date  DATE,
+  result       TEXT,                         -- e.g. cleared, complete, see notes
+  notes        TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Document extras (file link, DBS Update Service & register check metadata)
+ALTER TABLE compliance_documents ADD COLUMN IF NOT EXISTS file_id INT REFERENCES files(id);
+ALTER TABLE compliance_documents ADD COLUMN IF NOT EXISTS dbs_update_service BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE compliance_documents ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMPTZ;
+ALTER TABLE compliance_documents ADD COLUMN IF NOT EXISTS check_result TEXT;
+
+-- 2.6/2.7 audit of external register checks (DBS Update Service, NMC)
+CREATE TABLE IF NOT EXISTS register_checks (
+  id           SERIAL PRIMARY KEY,
+  candidate_id INT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  register     TEXT NOT NULL,                -- dbs_update_service | nmc
+  identifier   TEXT,
+  checked_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  result       TEXT NOT NULL,                -- clear | not_found | lapsed | error
+  checked_by   INT REFERENCES users(id),
+  notes        TEXT
+);
+
+-- 3.1-3.4 worker availability
+CREATE TABLE IF NOT EXISTS availability (
+  id           SERIAL PRIMARY KEY,
+  candidate_id INT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  date         DATE NOT NULL,
+  shift_type   TEXT NOT NULL DEFAULT 'any',  -- any | day | night | early | late | long_day
+  status       TEXT NOT NULL DEFAULT 'available', -- available | unavailable
+  source       TEXT NOT NULL DEFAULT 'office',    -- worker | office
+  notes        TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (candidate_id, date, shift_type)
+);
+
+-- 3.0 / 4.7-4.9 client shift requests
+CREATE TABLE IF NOT EXISTS shift_requests (
+  id          SERIAL PRIMARY KEY,
+  client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  date        DATE NOT NULL,
+  start_time  TIME,
+  end_time    TIME,
+  hours       NUMERIC(4,1),
+  shift_type  TEXT NOT NULL DEFAULT 'day',
+  role        TEXT,                          -- role required, e.g. Registered Nurse
+  qty         INT NOT NULL DEFAULT 1,
+  individual_id INT REFERENCES individuals(id) ON DELETE SET NULL,
+  status      TEXT NOT NULL DEFAULT 'pending', -- pending | filled | cancelled
+  filled_at   TIMESTAMPTZ,                     -- 7.2 time-to-fill tracking
+  urgency     TEXT NOT NULL DEFAULT 'normal',  -- normal | urgent
+  source      TEXT NOT NULL DEFAULT 'office',  -- office | portal | email
+  notes       TEXT,
+  cancelled_at TIMESTAMPTZ,
+  cancel_reason TEXT,
+  created_by  INT REFERENCES accounts(id),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE shift_requests ADD COLUMN IF NOT EXISTS filled_at TIMESTAMPTZ; -- 7.2 fill-time
+
+-- 3.10 / 4.1 offers of shifts to workers
+CREATE TABLE IF NOT EXISTS offers (
+  id           SERIAL PRIMARY KEY,
+  request_id   INT REFERENCES shift_requests(id) ON DELETE CASCADE,
+  shift_id     INT REFERENCES shifts(id) ON DELETE CASCADE,
+  candidate_id INT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  status       TEXT NOT NULL DEFAULT 'sent', -- sent | accepted | declined | withdrawn
+  decline_reason TEXT,                       -- 7.3 withdrawal/decline reason
+  sent_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  responded_at TIMESTAMPTZ,
+  created_by   INT REFERENCES users(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS decline_reason TEXT; -- 7.3
+
+-- 3.11 do-not-offer markers
+CREATE TABLE IF NOT EXISTS candidate_blocks (
+  id            SERIAL PRIMARY KEY,
+  candidate_id  INT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  client_id     INT REFERENCES clients(id) ON DELETE CASCADE,
+  individual_id INT REFERENCES individuals(id) ON DELETE CASCADE,
+  reason        TEXT,
+  created_by    INT REFERENCES users(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Shift record additions
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS request_id INT REFERENCES shift_requests(id) ON DELETE SET NULL;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS individual_id INT REFERENCES individuals(id) ON DELETE SET NULL;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS allocated_by INT REFERENCES users(id);
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worker_confirmed_at TIMESTAMPTZ;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS cancelled_by TEXT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS actual_start TIME;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS actual_end TIME;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS actual_hours NUMERIC(4,1);
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS signatory_notes TEXT;          -- 6.10a
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worker_sig_name TEXT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS worker_sig_at TIMESTAMPTZ;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS client_sig_name TEXT;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS client_sig_at TIMESTAMPTZ;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS approved_by INT REFERENCES users(id);  -- 6.10c
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS timesheet_locked BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE shifts ADD COLUMN IF NOT EXISTS invoice_id INT;
+
+-- 6.10 timesheet query / return-for-correction log
+CREATE TABLE IF NOT EXISTS timesheet_queries (
+  id          SERIAL PRIMARY KEY,
+  shift_id    INT NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+  raised_by   INT REFERENCES users(id),
+  note        TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'open', -- open | resolved
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ
+);
+
+-- 4.4 standing-instruction acknowledgements
+CREATE TABLE IF NOT EXISTS instruction_acks (
+  id           SERIAL PRIMARY KEY,
+  shift_id     INT NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+  candidate_id INT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  client_id    INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  acked_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (shift_id, candidate_id)
+);
+
+-- Phone-signing tokens for client signatories (6.2)
+CREATE TABLE IF NOT EXISTS sign_tokens (
+  id         SERIAL PRIMARY KEY,
+  shift_id   INT NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+  token      TEXT UNIQUE NOT NULL,
+  kind       TEXT NOT NULL,                  -- client_signature | worker_signature
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 6.6 / 6.10c / 6.11 invoices
+CREATE TABLE IF NOT EXISTS invoices (
+  id          SERIAL PRIMARY KEY,
+  client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  number      TEXT UNIQUE NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'draft', -- draft | sent | paid | cancelled
+  issue_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+  due_date    DATE,
+  subtotal    NUMERIC(10,2) NOT NULL DEFAULT 0,
+  notes       TEXT,
+  sent_at     TIMESTAMPTZ,
+  paid_at     TIMESTAMPTZ,
+  created_by  INT REFERENCES users(id),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS invoice_lines (
+  id          SERIAL PRIMARY KEY,
+  invoice_id  INT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  shift_id    INT REFERENCES shifts(id) ON DELETE SET NULL,
+  description TEXT,
+  hours       NUMERIC(5,2),
+  rate        NUMERIC(8,2),
+  amount      NUMERIC(10,2) NOT NULL
+);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'shifts_invoice_fk') THEN
+    ALTER TABLE shifts ADD CONSTRAINT shifts_invoice_fk
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- 2.2 / 4.2-4.6 notification outbox (email log + WhatsApp deep links)
+CREATE TABLE IF NOT EXISTS messages (
+  id           SERIAL PRIMARY KEY,
+  direction    TEXT NOT NULL DEFAULT 'outbound', -- outbound | inbound
+  channel      TEXT NOT NULL,                    -- email | whatsapp | system
+  to_name      TEXT,
+  to_contact   TEXT,                             -- email address or phone
+  subject      TEXT,
+  body         TEXT,
+  status       TEXT NOT NULL DEFAULT 'queued',   -- queued | sent | logged | failed
+  entity_type  TEXT,
+  entity_id    INT,
+  created_by   INT REFERENCES users(id),
+  sent_at      TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 8.9 audit trail
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          BIGSERIAL PRIMARY KEY,
+  account_id  INT REFERENCES accounts(id) ON DELETE SET NULL,
+  actor_name  TEXT,
+  action      TEXT NOT NULL,                 -- e.g. shift.allocated, timesheet.approved, rate.changed
+  entity_type TEXT,
+  entity_id   INT,
+  detail      JSONB DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 6.7 bank holidays (uplift rules reference)
+CREATE TABLE IF NOT EXISTS bank_holidays (
+  date DATE PRIMARY KEY,
+  name TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_candidates_status   ON candidates(status);
 CREATE INDEX IF NOT EXISTS idx_candidates_role     ON candidates(role);
 CREATE INDEX IF NOT EXISTS idx_compdocs_candidate  ON compliance_documents(candidate_id);
@@ -202,3 +519,24 @@ CREATE INDEX IF NOT EXISTS idx_shifts_client       ON shifts(client_id);
 CREATE INDEX IF NOT EXISTS idx_activities_entity   ON activities(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due           ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_cvmatch_vacancy     ON cv_matches(vacancy_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_kind_ref   ON accounts(kind, candidate_id, client_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry     ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_files_owner         ON files(owner_type, owner_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations(status);
+CREATE INDEX IF NOT EXISTS idx_individuals_client  ON individuals(client_id);
+CREATE INDEX IF NOT EXISTS idx_oh_candidate        ON oh_records(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_availability_date   ON availability(date);
+CREATE INDEX IF NOT EXISTS idx_availability_cand   ON availability(candidate_id, date);
+CREATE INDEX IF NOT EXISTS idx_requests_client     ON shift_requests(client_id, date);
+CREATE INDEX IF NOT EXISTS idx_requests_status     ON shift_requests(status);
+CREATE INDEX IF NOT EXISTS idx_offers_request      ON offers(request_id);
+CREATE INDEX IF NOT EXISTS idx_offers_candidate    ON offers(candidate_id, status);
+CREATE INDEX IF NOT EXISTS idx_blocks_candidate    ON candidate_blocks(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_request      ON shifts(request_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_individual   ON shifts(individual_id);
+CREATE INDEX IF NOT EXISTS idx_tsqueries_shift     ON timesheet_queries(shift_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_client      ON invoices(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_invlines_invoice    ON invoice_lines(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created    ON messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_entity        ON audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created       ON audit_log(created_at);

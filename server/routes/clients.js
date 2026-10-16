@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db.js';
+import { audit } from '../lib/audit.js';
 
 const r = Router();
 
@@ -29,7 +30,7 @@ r.get('/', async (req, res, next) => {
 r.get('/:id', async (req, res, next) => {
   try {
     const id = req.params.id;
-    const [c, contacts, vacancies, placements, acts, shifts] = await Promise.all([
+    const [c, contacts, vacancies, placements, acts, shifts, reqs, individuals] = await Promise.all([
       query(`SELECT c.*, u.name AS am_name, u.initials AS am_initials, u.color AS am_color
              FROM clients c LEFT JOIN users u ON u.id = c.account_manager_id WHERE c.id = $1`, [id]),
       query(`SELECT * FROM client_contacts WHERE client_id = $1 ORDER BY is_primary DESC, name`, [id]),
@@ -46,9 +47,12 @@ r.get('/:id', async (req, res, next) => {
       query(`SELECT s.*, c.first_name || ' ' || c.last_name AS candidate_name FROM shifts s
              JOIN candidates c ON c.id = s.candidate_id
              WHERE s.client_id = $1 ORDER BY s.shift_date DESC LIMIT 60`, [id]),
+      query(`SELECT * FROM client_requirements WHERE client_id = $1 ORDER BY doc_type`, [id]),
+      query(`SELECT * FROM individuals WHERE client_id = $1 ORDER BY is_active DESC, name`, [id]),
     ]);
     if (!c.rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json({ ...c.rows[0], contacts: contacts.rows, vacancies: vacancies.rows, placements: placements.rows, activities: acts.rows, shifts: shifts.rows });
+    res.json({ ...c.rows[0], contacts: contacts.rows, vacancies: vacancies.rows, placements: placements.rows,
+      activities: acts.rows, shifts: shifts.rows, requirements: reqs.rows, individuals: individuals.rows });
   } catch (e) { next(e); }
 });
 
@@ -66,7 +70,7 @@ r.post('/', async (req, res, next) => {
 
 r.patch('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','group_name','type','address','town','postcode','phone','email','website','beds','cqc_rating','status','payment_terms','account_manager_id','notes'];
+    const allowed = ['name','group_name','type','address','town','postcode','phone','email','website','beds','cqc_rating','status','payment_terms','account_manager_id','notes','standing_instructions','share_profile_fields'];
     const sets = [], params = [];
     for (const k of allowed) {
       if (k in req.body) { params.push(req.body[k]); sets.push(`${k} = $${params.length}`); }
@@ -80,11 +84,67 @@ r.patch('/:id', async (req, res, next) => {
 
 r.post('/:id/contacts', async (req, res, next) => {
   try {
-    const { name, role, email, phone, is_primary = false } = req.body;
+    const { name, role, email, phone, is_primary = false, is_signatory = false } = req.body;
     const { rows } = await query(
-      `INSERT INTO client_contacts (client_id, name, role, email, phone, is_primary) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.params.id, name, role, email, phone, is_primary]);
+      `INSERT INTO client_contacts (client_id, name, role, email, phone, is_primary, is_signatory) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.id, name, role, email, phone, is_primary, is_signatory]);
     res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// Mark a contact as an authorised timesheet signatory (6.2/6.10a) or portal user.
+r.patch('/:id/contacts/:contactId', async (req, res, next) => {
+  try {
+    const allowed = ['name', 'role', 'email', 'phone', 'is_primary', 'is_signatory'];
+    const sets = [], params = [];
+    for (const k of allowed) if (k in req.body) { params.push(req.body[k]); sets.push(`${k} = $${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+    params.push(req.params.contactId, req.params.id);
+    const { rows } = await query(
+      `UPDATE client_contacts SET ${sets.join(', ')} WHERE id = $${params.length - 1} AND client_id = $${params.length} RETURNING *`, params);
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// ─── 2.3 per-site required-document list ──────────────────────────────────
+r.put('/:id/requirements', async (req, res, next) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : req.body.items;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items[] required: {doc_type, required}' });
+    for (const it of items) {
+      await query(
+        `INSERT INTO client_requirements (client_id, doc_type, required) VALUES ($1,$2,$3)
+         ON CONFLICT (client_id, doc_type) DO UPDATE SET required = EXCLUDED.required`,
+        [req.params.id, it.doc_type, !!it.required]);
+    }
+    await audit(req, 'requirements.updated', 'client', +req.params.id, { count: items.length });
+    const { rows } = await query(`SELECT * FROM client_requirements WHERE client_id = $1 ORDER BY doc_type`, [req.params.id]);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// ─── 3.7 named individuals at this site ───────────────────────────────────
+r.post('/:id/individuals', async (req, res, next) => {
+  try {
+    const { name, notes } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const { rows } = await query(
+      `INSERT INTO individuals (client_id, name, notes) VALUES ($1,$2,$3) RETURNING *`,
+      [req.params.id, name, notes || null]);
+    res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+r.patch('/:id/individuals/:iid', async (req, res, next) => {
+  try {
+    const allowed = ['name', 'notes', 'is_active'];
+    const sets = [], params = [];
+    for (const k of allowed) if (k in req.body) { params.push(req.body[k]); sets.push(`${k} = $${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+    params.push(req.params.iid, req.params.id);
+    const { rows } = await query(
+      `UPDATE individuals SET ${sets.join(', ')} WHERE id = $${params.length - 1} AND client_id = $${params.length} RETURNING *`, params);
+    res.json(rows[0]);
   } catch (e) { next(e); }
 });
 

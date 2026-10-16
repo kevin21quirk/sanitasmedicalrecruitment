@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { attachAccount, requireAuth } from './lib/auth.js';
+
+import auth from './routes/auth.js';
+import accounts from './routes/accounts.js';
 import candidates from './routes/candidates.js';
 import clients from './routes/clients.js';
 import vacancies from './routes/vacancies.js';
@@ -16,26 +20,48 @@ import tasks from './routes/tasks.js';
 import dashboard from './routes/dashboard.js';
 import reports from './routes/reports.js';
 import users from './routes/users.js';
+import messages from './routes/messages.js';
+import files from './routes/files.js';
+import publicRoutes from './routes/public.js';
+import portal from './routes/portal.js';
+import requests from './routes/requests.js';
+import invoices from './routes/invoices.js';
+import admin from './routes/admin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: '2mb' }));
+app.use(attachAccount);
 
-app.use('/api/candidates', candidates);
-app.use('/api/clients', clients);
-app.use('/api/vacancies', vacancies);
-app.use('/api', cvmatch);
-app.use('/api/placements', placements);
-app.use('/api/shifts', shifts);
-app.use('/api/compliance', compliance);
-app.use('/api/activities', activities);
-app.use('/api/tasks', tasks);
-app.use('/api/dashboard', dashboard);
-app.use('/api/reports', reports);
-app.use('/api/users', users);
+// Public endpoints (registration, phone-signing links) — no auth.
+app.use('/api/public', publicRoutes);
+// Portal endpoints (worker / client / supervisor) — auth enforced per-route.
+app.use('/api/portal', portal);
+// Staff auth endpoints.
+app.use('/api/auth', auth);
+
+// Everything else requires a signed-in staff account.
+app.use('/api/accounts', accounts);
+app.use('/api/candidates', requireAuth, candidates);
+app.use('/api/clients', requireAuth, clients);
+app.use('/api/vacancies', requireAuth, vacancies);
+app.use('/api', requireAuth, cvmatch);
+app.use('/api/placements', requireAuth, placements);
+app.use('/api/shifts', requireAuth, shifts);
+app.use('/api', requireAuth, requests); // requests/availability/offers/allocation
+app.use('/api', requireAuth, invoices); // timesheets workflow, invoices, payroll, margin
+app.use('/api/admin', requireAuth, admin); // audit, settings, retention, exports, digest
+app.use('/api/compliance', requireAuth, compliance);
+app.use('/api/activities', requireAuth, activities);
+app.use('/api/tasks', requireAuth, tasks);
+app.use('/api/dashboard', requireAuth, dashboard);
+app.use('/api/reports', requireAuth, reports);
+app.use('/api/users', requireAuth, users);
+app.use('/api/messages', requireAuth, messages);
+app.use('/api/files', files); // per-file authorisation inside the route
 
 app.use((err, req, res, _next) => {
   console.error(err);

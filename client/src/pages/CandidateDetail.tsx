@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, CalendarDays, CircleCheck, Clock3, Inbox, Mail,
-  MapPin, Pencil, Phone, Plus, ShieldAlert, ShieldCheck, Star,
+  ArrowLeft, Briefcase, CalendarDays, CircleCheck, Clock3, FileText, Inbox, Mail,
+  MapPin, Pencil, Phone, Plus, Printer, ShieldAlert, ShieldCheck, Star, Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { ago, daysUntil, fmtDate, gbp2 } from '../lib/format';
-import { Activity, Candidate, ComplianceDoc, Placement, PlacementStage, Shift, User } from '../lib/types';
+import {
+  Activity, Candidate, CandidateBlock, Client, ComplianceDoc, OhRecord,
+  Placement, PlacementStage, RegisterCheck, Shift, User,
+} from '../lib/types';
 import {
   Avatar, Badge, Card, CardHeader, EmptyState, Modal, Spinner,
   btnGhost, btnPrimary, fmtStatus, inputCls,
@@ -20,6 +24,9 @@ interface CandidateDetailData extends Candidate {
   placements: Placement[];
   activities: Activity[];
   shifts: Shift[];
+  blocks: CandidateBlock[];
+  register_checks: RegisterCheck[];
+  oh_records?: OhRecord[];
 }
 
 type Tab = 'overview' | 'compliance' | 'placements' | 'shifts' | 'activity';
@@ -88,10 +95,28 @@ function Stars({ rating }: { rating: string | null }) {
 
 export default function CandidateDetail() {
   const { id } = useParams<{ id: string }>();
+  const { account } = useAuth();
   const [data, setData] = useState<CandidateDetailData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [tab, setTab] = useState<Tab>('overview');
+  const canSeeOH = account?.accessRole === 'admin' || account?.accessRole === 'compliance';
+
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploadDocId, setUploadDocId] = useState<number | null>(null);
+
+  const [checkOpen, setCheckOpen] = useState<null | { register: 'nmc' | 'dbs_update_service' }>(null);
+  const [checkForm, setCheckForm] = useState({ result: 'clear', identifier: '', notes: '' });
+
+  const [ohOpen, setOhOpen] = useState(false);
+  const [ohForm, setOhForm] = useState({ kind: 'immunisation', name: '', record_date: '', expiry_date: '', result: '', notes: '' });
+
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockForm, setBlockForm] = useState({ client_id: '', reason: '' });
+
+  const [compCheck, setCompCheck] = useState<null | { ok: boolean; gaps: { type: string; problem: string }[] }>(null);
+  const [compClient, setCompClient] = useState('');
+  const [clients, setClients] = useState<Client[]>([]);
 
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({ status: '', email: '', phone: '', pay_min: '', pay_max: '', preferred_shift: '', owner_id: '', notes: '' });
@@ -115,6 +140,7 @@ export default function CandidateDetail() {
 
   useEffect(() => { setData(null); setNotFound(false); load(); }, [load]);
   useEffect(() => { api.get<User[]>('/users').then(setUsers).catch(() => {}); }, []);
+  useEffect(() => { api.get<Client[]>('/clients').then(setClients).catch(() => {}); }, []);
 
   const backLink = (
     <Link to="/candidates" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-brand-600">
@@ -197,7 +223,58 @@ export default function CandidateDetail() {
   };
 
   const markVerified = (docId: number) =>
-    api.patch(`/compliance/documents/${docId}`, { status: 'valid', verified_by: 5 }).then(load);
+    api.patch(`/compliance/documents/${docId}`, { status: 'valid', verified_by: account?.userId }).then(load);
+
+  const uploadDocFile = async (docId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('document_id', String(docId));
+    await api.upload(`/candidates/${id}/documents/upload`, form);
+    load();
+  };
+
+  const saveCheck = async () => {
+    if (!checkOpen) return;
+    await api.post(`/candidates/${id}/register-checks`, {
+      register: checkOpen.register,
+      identifier: checkForm.identifier || null,
+      result: checkForm.result,
+      notes: checkForm.notes || null,
+    });
+    setCheckOpen(null);
+    setCheckForm({ result: 'clear', identifier: '', notes: '' });
+    load();
+  };
+
+  const saveOh = async () => {
+    await api.post(`/candidates/${id}/oh`, {
+      ...ohForm,
+      record_date: ohForm.record_date || null,
+      expiry_date: ohForm.expiry_date || null,
+      result: ohForm.result || null,
+      notes: ohForm.notes || null,
+    });
+    setOhOpen(false);
+    setOhForm({ kind: 'immunisation', name: '', record_date: '', expiry_date: '', result: '', notes: '' });
+    load();
+  };
+
+  const saveBlock = async () => {
+    await api.post(`/candidates/${id}/blocks`, {
+      client_id: blockForm.client_id ? +blockForm.client_id : null,
+      reason: blockForm.reason || null,
+    });
+    setBlockOpen(false);
+    setBlockForm({ client_id: '', reason: '' });
+    load();
+  };
+
+  const runComplianceCheck = async () => {
+    if (!compClient) return;
+    const res = await api.get<{ ok: boolean; gaps: { type: string; problem: string }[] }>(
+      `/candidates/${id}/compliance/${compClient}`);
+    setCompCheck(res);
+  };
 
   const advanceStage = (placementId: number, stage: string) =>
     api.patch(`/placements/${placementId}`, { stage }).then(load);
@@ -209,7 +286,7 @@ export default function CandidateDetail() {
         type: actForm.type,
         subject: actForm.subject || null,
         body: actForm.body || null,
-        user_id: 2,
+        user_id: account?.userId ?? null,
       });
       setActForm({ type: 'note', subject: '', body: '' });
       load();
@@ -386,64 +463,215 @@ export default function CandidateDetail() {
 
       {/* Compliance */}
       {tab === 'compliance' && (
-        <Card>
-          <CardHeader
-            title="Compliance Documents"
-            subtitle="Right to work, DBS, training & registrations"
-            action={<button className={clsx(btnPrimary, 'px-3 py-1.5 text-xs')} onClick={() => setShowDoc(true)}><Plus className="h-3.5 w-3.5" /> Add Document</button>}
-          />
-          {!data.documents.length ? (
-            <EmptyState icon={<Inbox className="h-5 w-5" />} title="No documents on file" hint="Add compliance documents to get this candidate work-ready." />
-          ) : (
-            <div className="scroll-thin overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    <th className="px-5 py-3">Type</th>
-                    <th className="px-4 py-3">Reference</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Issued</th>
-                    <th className="px-4 py-3">Expires</th>
-                    <th className="px-4 py-3">Verified by</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {data.documents.map((d) => {
-                    const du = daysUntil(d.expiry_date);
-                    return (
-                      <tr key={d.id} className="transition-colors hover:bg-slate-50/70">
-                        <td className="px-5 py-3 font-medium text-ink">{d.type}</td>
-                        <td className="px-4 py-3 text-xs text-slate-600">{d.reference_no ?? '—'}</td>
-                        <td className="px-4 py-3"><Badge value={d.status} /></td>
-                        <td className="px-4 py-3 text-xs text-slate-600">{fmtDate(d.issue_date)}</td>
-                        <td className={clsx(
-                          'px-4 py-3 text-xs',
-                          du != null && du < 0 ? 'font-medium text-red-600' : du != null && du <= 60 ? 'font-medium text-amber-600' : 'text-slate-600'
-                        )}>
-                          {fmtDate(d.expiry_date)}
-                          {du != null && du < 0 && <span className="ml-1 text-[10px] uppercase">expired</span>}
-                          {du != null && du >= 0 && du <= 60 && <span className="ml-1 text-[10px]">({du}d)</span>}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-600">{d.verified_by_name ?? '—'}</td>
-                        <td className="px-4 py-3 text-right">
-                          {(d.status === 'pending' || d.status === 'missing') && (
-                            <button
-                              onClick={() => markVerified(d.id)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
-                            >
-                              <CircleCheck className="h-3 w-3 text-emerald-500" /> Mark verified
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <div className="space-y-5">
+          <Card>
+            <CardHeader
+              title="Compliance Documents"
+              subtitle="Right to work, DBS, training & registrations"
+              action={
+                <div className="flex gap-2">
+                  <a
+                    href={`/candidates/${id}/file`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={clsx(btnGhost, 'px-3 py-1.5 text-xs')}
+                  >
+                    <Printer className="h-3.5 w-3.5" /> Compliance file
+                  </a>
+                  <button className={clsx(btnPrimary, 'px-3 py-1.5 text-xs')} onClick={() => setShowDoc(true)}><Plus className="h-3.5 w-3.5" /> Add Document</button>
+                </div>
+              }
+            />
+            {!data.documents.length ? (
+              <EmptyState icon={<Inbox className="h-5 w-5" />} title="No documents on file" hint="Add compliance documents to get this candidate work-ready." />
+            ) : (
+              <div className="scroll-thin overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="px-5 py-3">Type</th>
+                      <th className="px-4 py-3">Reference</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Issued</th>
+                      <th className="px-4 py-3">Expires</th>
+                      <th className="px-4 py-3">File</th>
+                      <th className="px-4 py-3">Verified by</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {data.documents.map((d) => {
+                      const du = daysUntil(d.expiry_date);
+                      const isDbs = d.type.toLowerCase().includes('dbs');
+                      const isNmc = d.type.toLowerCase().includes('nmc');
+                      return (
+                        <tr key={d.id} className="transition-colors hover:bg-slate-50/70">
+                          <td className="px-5 py-3 font-medium text-ink">
+                            {d.type}
+                            {d.dbs_update_service && (
+                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-0.5 text-[9px] font-semibold uppercase text-emerald-600">Update Svc</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{d.reference_no ?? '—'}</td>
+                          <td className="px-4 py-3">
+                            <Badge value={d.status} />
+                            {d.check_result && (
+                              <p className="mt-0.5 text-[10px] text-slate-400">check: {d.check_result} {d.last_checked_at ? fmtDate(d.last_checked_at) : ''}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{fmtDate(d.issue_date)}</td>
+                          <td className={clsx(
+                            'px-4 py-3 text-xs',
+                            du != null && du < 0 ? 'font-medium text-red-600' : du != null && du <= 60 ? 'font-medium text-amber-600' : 'text-slate-600'
+                          )}>
+                            {fmtDate(d.expiry_date)}
+                            {du != null && du < 0 && <span className="ml-1 text-[10px] uppercase">expired</span>}
+                            {du != null && du >= 0 && du <= 60 && <span className="ml-1 text-[10px]">({du}d)</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {d.file_id ? (
+                              <a href={`/api/files/${d.file_id}/download`} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+                                <FileText className="h-3 w-3" /> {d.file_name || 'View'}
+                              </a>
+                            ) : (
+                              <button
+                                className="inline-flex items-center gap-1 text-slate-400 hover:text-brand-600"
+                                onClick={() => { setUploadDocId(d.id); fileInput.current?.click(); }}
+                              >
+                                <Upload className="h-3 w-3" /> Upload
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{d.verified_by_name ?? '—'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {(isDbs || isNmc) && (
+                                <button
+                                  onClick={() => { setCheckForm({ result: 'clear', identifier: d.reference_no ?? '', notes: '' }); setCheckOpen({ register: isNmc ? 'nmc' : 'dbs_update_service' }); }}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                                  title={isNmc ? 'Record NMC register check' : 'Record DBS Update Service check'}
+                                >
+                                  <ShieldCheck className="h-3 w-3 text-brand-500" /> Check
+                                </button>
+                              )}
+                              {(d.status === 'pending' || d.status === 'missing') && (
+                                <button
+                                  onClick={() => markVerified(d.id)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                                >
+                                  <CircleCheck className="h-3 w-3 text-emerald-500" /> Mark verified
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <input
+              ref={fileInput}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && uploadDocId) uploadDocFile(uploadDocId, f);
+                e.target.value = '';
+              }}
+            />
+          </Card>
+
+          {/* Per-site compliance check (2.3/2.4) */}
+          <Card>
+            <CardHeader title="Site Compliance Check" subtitle="Required-document list varies by client" />
+            <div className="flex flex-wrap items-center gap-3 px-5 py-4">
+              <select className={clsx(inputCls, 'max-w-xs')} value={compClient} onChange={(e) => { setCompClient(e.target.value); setCompCheck(null); }}>
+                <option value="">Select client site…</option>
+                {clients.map((cl) => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+              </select>
+              <button className={clsx(btnGhost, 'text-xs')} disabled={!compClient} onClick={runComplianceCheck}>Check</button>
+              {compCheck && (
+                compCheck.ok
+                  ? <Badge value="compliant" label="Compliant for this site" />
+                  : (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge value="expired" label="Not compliant" />
+                      {compCheck.gaps.map((g, i) => (
+                        <span key={i} className={clsx(chip, 'bg-red-50 text-red-700 ring-red-600/20')}>
+                          {g.type}: {g.problem}
+                        </span>
+                      ))}
+                    </div>
+                  )
+              )}
             </div>
+          </Card>
+
+          {/* Occupational health — restricted (2.8/2.9) */}
+          {canSeeOH && (
+            <Card>
+              <CardHeader
+                title="Occupational Health & Immunisations"
+                subtitle="Restricted — visible to compliance staff only"
+                action={<button className={clsx(btnGhost, 'px-3 py-1.5 text-xs')} onClick={() => setOhOpen(true)}><Plus className="h-3.5 w-3.5" /> Add record</button>}
+              />
+              {!data.oh_records?.length ? (
+                <p className="px-5 pb-4 text-xs text-slate-400">No OH records.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
+                      <th className="px-5 py-2.5">Record</th><th className="px-4 py-2.5">Kind</th>
+                      <th className="px-4 py-2.5">Date</th><th className="px-4 py-2.5">Expires</th><th className="px-4 py-2.5">Result</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {data.oh_records.map((o) => (
+                      <tr key={o.id}>
+                        <td className="px-5 py-2.5 font-medium text-ink">{o.name}</td>
+                        <td className="px-4 py-2.5 text-xs capitalize text-slate-600">{o.kind}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-600">{fmtDate(o.record_date)}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-600">{fmtDate(o.expiry_date)}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-600">{o.result ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Card>
           )}
-        </Card>
+
+          {/* Do-not-offer blocks (3.11) */}
+          <Card>
+            <CardHeader
+              title="Placement Restrictions"
+              subtitle="Do not offer this worker to a client or individual"
+              action={<button className={clsx(btnGhost, 'px-3 py-1.5 text-xs')} onClick={() => setBlockOpen(true)}><Plus className="h-3.5 w-3.5" /> Add restriction</button>}
+            />
+            {!data.blocks?.length ? (
+              <p className="px-5 pb-4 text-xs text-slate-400">No restrictions.</p>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {data.blocks.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between px-5 py-3 text-sm">
+                    <div>
+                      <span className="font-medium text-ink">{b.client_name ?? b.individual_name ?? 'Restriction'}</span>
+                      {b.reason && <span className="ml-2 text-xs text-slate-500">— {b.reason}</span>}
+                    </div>
+                    <button
+                      className="text-xs text-slate-400 hover:text-red-600"
+                      onClick={() => api.del(`/candidates/${id}/blocks/${b.id}`).then(load)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
       )}
 
       {/* Placements */}
@@ -665,6 +893,90 @@ export default function CandidateDetail() {
           <button className={clsx(btnPrimary, 'disabled:opacity-50')} disabled={saving} onClick={addDoc}>
             {saving ? 'Saving…' : 'Add Document'}
           </button>
+        </div>
+      </Modal>
+
+      {/* Register check modal (DBS Update Service / NMC) */}
+      <Modal open={!!checkOpen} onClose={() => setCheckOpen(null)} title={`Record ${checkOpen?.register === 'nmc' ? 'NMC register' : 'DBS Update Service'} check`}>
+        <div className="space-y-3">
+          <Field label="Result">
+            <select className={inputCls} value={checkForm.result} onChange={(e) => setCheckForm({ ...checkForm, result: e.target.value })}>
+              <option value="clear">Clear / current</option>
+              <option value="not_found">Not found</option>
+              <option value="lapsed">Lapsed / not current</option>
+              <option value="error">Unable to check</option>
+            </select>
+          </Field>
+          <Field label="Reference / registration number">
+            <input className={inputCls} value={checkForm.identifier} onChange={(e) => setCheckForm({ ...checkForm, identifier: e.target.value })} />
+          </Field>
+          <Field label="Notes">
+            <textarea className={clsx(inputCls, 'min-h-16 resize-y')} value={checkForm.notes} onChange={(e) => setCheckForm({ ...checkForm, notes: e.target.value })} />
+          </Field>
+          <p className="text-[11px] text-slate-400">
+            The check is recorded with today's date and your name. Perform the live check on the
+            {checkOpen?.register === 'nmc' ? ' NMC register ' : ' DBS Update Service '} and record the result here.
+          </p>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button className={btnGhost} onClick={() => setCheckOpen(null)}>Cancel</button>
+          <button className={btnPrimary} onClick={saveCheck}>Record check</button>
+        </div>
+      </Modal>
+
+      {/* Occupational health record modal */}
+      <Modal open={ohOpen} onClose={() => setOhOpen(false)} title="Add OH / immunisation record">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Kind">
+              <select className={inputCls} value={ohForm.kind} onChange={(e) => setOhForm({ ...ohForm, kind: e.target.value })}>
+                <option value="immunisation">Immunisation</option>
+                <option value="screening">Screening</option>
+                <option value="clearance">Clearance</option>
+                <option value="fitness">Fitness assessment</option>
+              </select>
+            </Field>
+            <Field label="Result">
+              <input className={inputCls} placeholder="e.g. cleared, complete" value={ohForm.result} onChange={(e) => setOhForm({ ...ohForm, result: e.target.value })} />
+            </Field>
+          </div>
+          <Field label="Name" full>
+            <input className={inputCls} placeholder="e.g. Hepatitis B, TB / BCG" value={ohForm.name} onChange={(e) => setOhForm({ ...ohForm, name: e.target.value })} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Date">
+              <input type="date" className={inputCls} value={ohForm.record_date} onChange={(e) => setOhForm({ ...ohForm, record_date: e.target.value })} />
+            </Field>
+            <Field label="Expiry (if any)">
+              <input type="date" className={inputCls} value={ohForm.expiry_date} onChange={(e) => setOhForm({ ...ohForm, expiry_date: e.target.value })} />
+            </Field>
+          </div>
+          <Field label="Notes" full>
+            <textarea className={clsx(inputCls, 'min-h-16 resize-y')} value={ohForm.notes} onChange={(e) => setOhForm({ ...ohForm, notes: e.target.value })} />
+          </Field>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button className={btnGhost} onClick={() => setOhOpen(false)}>Cancel</button>
+          <button className={btnPrimary} disabled={!ohForm.name.trim()} onClick={saveOh}>Save record</button>
+        </div>
+      </Modal>
+
+      {/* Do-not-offer block modal (3.11) */}
+      <Modal open={blockOpen} onClose={() => setBlockOpen(false)} title="Add placement restriction">
+        <div className="space-y-3">
+          <Field label="Do not offer this worker to" full>
+            <select className={inputCls} value={blockForm.client_id} onChange={(e) => setBlockForm({ ...blockForm, client_id: e.target.value })}>
+              <option value="">Select client…</option>
+              {clients.map((cl) => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Reason" full>
+            <textarea className={clsx(inputCls, 'min-h-16 resize-y')} value={blockForm.reason} onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })} />
+          </Field>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button className={btnGhost} onClick={() => setBlockOpen(false)}>Cancel</button>
+          <button className={btnPrimary} disabled={!blockForm.client_id} onClick={saveBlock}>Add restriction</button>
         </div>
       </Modal>
     </div>

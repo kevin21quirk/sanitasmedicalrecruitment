@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
-  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X,
+  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2,
 } from 'lucide-react';
 import clsx from 'clsx';
-import MaintenancePage from './pages/MaintenancePage';
+import { AuthProvider, useAuth } from './lib/auth';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import SignPage from './pages/SignPage';
+import Portal from './pages/portal/Portal';
 import Dashboard from './pages/Dashboard';
 import Candidates from './pages/Candidates';
 import CandidateDetail from './pages/CandidateDetail';
@@ -15,16 +19,14 @@ import Vacancies from './pages/Vacancies';
 import VacancyDetail from './pages/VacancyDetail';
 import Placements from './pages/Placements';
 import ShiftsCalendar from './pages/ShiftsCalendar';
+import Requests from './pages/Requests';
 import Timesheets from './pages/Timesheets';
+import Invoices from './pages/Invoices';
 import Compliance from './pages/Compliance';
+import ComplianceFile from './pages/ComplianceFile';
 import InboxPage from './pages/Inbox';
 import Reports from './pages/Reports';
-
-// ─── Maintenance mode ──────────────────────────────────────────────────────
-// Set to true to show the "temporarily unavailable" splash page to all users.
-// Switch back to false when the portal is ready to go live.
-const MAINTENANCE_MODE = true;
-// ──────────────────────────────────────────────────────────────────────────
+import Settings from './pages/Settings';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -33,10 +35,13 @@ const NAV = [
   { to: '/vacancies', label: 'Vacancies', icon: KanbanSquare },
   { to: '/placements', label: 'Placements', icon: Briefcase },
   { to: '/shifts', label: 'Shift Calendar', icon: CalendarDays },
+  { to: '/requests', label: 'Requests', icon: ClipboardList },
   { to: '/timesheets', label: 'Timesheets', icon: Clock3 },
+  { to: '/invoices', label: 'Invoicing', icon: PoundSterling },
   { to: '/compliance', label: 'Compliance', icon: ShieldCheck },
   { to: '/inbox', label: 'Communications', icon: Inbox },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/settings', label: 'Settings', icon: Settings2 },
 ];
 
 function Logo() {
@@ -49,14 +54,16 @@ function Logo() {
   );
 }
 
-export default function App() {
+function StaffApp() {
   const [navOpen, setNavOpen] = useState(false);
+  const { account, logout } = useAuth();
   const location = useLocation();
 
   // Close the drawer whenever the route changes
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
 
-  if (MAINTENANCE_MODE) return <MaintenancePage />;
+  const initials = account?.initials ??
+    (account?.name ? account.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : '?');
 
   return (
     <div className="flex min-h-screen">
@@ -141,11 +148,23 @@ export default function App() {
               <Bell className="h-4.5 w-4.5" />
             </NavLink>
             <div className="flex items-center gap-2.5 border-l border-slate-200 pl-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold text-white">JW</span>
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white"
+                style={{ backgroundColor: account?.color || '#1863dc' }}
+              >
+                {initials}
+              </span>
               <div className="hidden leading-tight sm:block">
-                <p className="text-xs font-semibold text-ink">Jill Wilkinson</p>
-                <p className="text-[10px] text-slate-500">Director</p>
+                <p className="text-xs font-semibold text-ink">{account?.name}</p>
+                <p className="text-[10px] capitalize text-slate-500">{account?.accessRole || 'staff'}</p>
               </div>
+              <button
+                onClick={logout}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </header>
@@ -161,13 +180,57 @@ export default function App() {
             <Route path="/vacancies/:id" element={<VacancyDetail />} />
             <Route path="/placements" element={<Placements />} />
             <Route path="/shifts" element={<ShiftsCalendar />} />
+            <Route path="/requests" element={<Requests />} />
             <Route path="/timesheets" element={<Timesheets />} />
+            <Route path="/invoices" element={<Invoices />} />
             <Route path="/compliance" element={<Compliance />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>
     </div>
+  );
+}
+
+function Gate() {
+  const { account, loading } = useAuth();
+  const location = useLocation();
+
+  // Public routes don't need an account.
+  if (location.pathname.startsWith('/register') || location.pathname.startsWith('/sign/')) {
+    return (
+      <Routes>
+        <Route path="/register" element={<Register />} />
+        <Route path="/register/:token" element={<Register />} />
+        <Route path="/sign/:token" element={<SignPage />} />
+      </Routes>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <svg className="h-6 w-6 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (!account) return <Login />;
+  if (account.kind !== 'staff') return <Portal account={account} />;
+  // Printable compliance file renders without the app shell (2.11)
+  if (/^\/candidates\/\d+\/file$/.test(location.pathname)) return <ComplianceFile />;
+  return <StaffApp />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   );
 }

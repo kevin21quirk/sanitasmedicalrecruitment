@@ -1,37 +1,52 @@
-# Sanitas CRM
+# Sanitas CRM / Ops System
 
-Full-stack recruitment CRM for Sanitas Medical Recruitment (nurses & HCAs into private care homes, Essex/London).
+Full-stack staffing-operations system for Sanitas Medical Recruitment (nurses, HCAs and support workers into private care homes, Essex/London). Built to satisfy `Client_Build_Spec_Requirements.xlsx` — single-agency, human-led allocation, full portals, compliance engine, timesheets/invoicing/payroll, data rights.
 
 ## Stack
 - **Frontend**: `client/` — React 18 + TypeScript + Vite + Tailwind CSS v4 + react-router-dom + recharts + lucide-react + dnd-kit + date-fns
 - **Backend**: `server/` — Node + Express + pg (ESM)
 - **Database**: Neon PostgreSQL (connection string in root `.env`, gitignored)
+- **Files**: Vercel Blob (`server/lib/files.js`); `BLOB_READ_WRITE_TOKEN` required in production. Local dev stores the `files` row without blob content.
+- **Messaging**: no API integrations — `wa.me` deep links + `mailto:` links generated into a `messages` outbox; staff click-to-send. Logged + auditable.
 
 ## Commands
-- `npm run dev` — run API (:4000) + Vite (:5173) together (uses `concurrently`)
-- `npm run dev:server` / `npm run dev:client` — run individually
-- `npm run db:migrate` — apply `server/schema.sql`
-- `npm run db:seed` — reseed with demo data (TRUNCATEs all tables)
+- `npm run dev` — API (:4000) + Vite (:5173) together
+- `npm run db:migrate` — apply `server/schema.sql` (idempotent; ALTERs use `IF NOT EXISTS`, constraint adds wrapped in `DO $$` blocks)
+- `npm run db:seed` — demo data; staff password `sanitas123`, portal password `portal123`
 - `npm run build` — client production build; `cd client && npx tsc --noEmit` typechecks
 
-## Structure
-- `server/routes/` — REST endpoints: candidates, clients, vacancies, placements, shifts, compliance, activities, tasks, dashboard, reports, users
-- `client/src/pages/` — Dashboard, Candidates(+Detail), Clients(+Detail), Vacancies kanban(+Detail), Placements, ShiftsCalendar, Timesheets, Compliance, Inbox, Reports
-- `client/src/components/ui.tsx` — shared primitives (Badge/Card/Modal/PageHeader + STATUS_STYLES color map)
-- Vite proxies `/api` → `localhost:4000`
+## Access model
+- `accounts` table = unified login: `staff` | `worker` | `client` | `supervisor`. Sessions in `sessions` (cookie `sanitas_session`, 30d); deactivation deletes sessions = instant revoke (5.3).
+- `attachAccount` middleware loads `req.account` (`{id, kind, userId, candidateId, clientId, contactId, email, accessRole, name}`).
+- Guards: `requireAuth` (staff only), `requireAccess('admin'|'office'|'compliance'|'finance')` (8.4 role restriction — admin passes everything), `requirePortal('worker'|'client'|'supervisor')`.
+- Route namespaces: `/api/public/*` (registration, /sign/:token), `/api/portal/*` (worker/client/supervisor), `/api/auth`, everything else behind `requireAuth`. `/api/admin/*` is staff-only with extra `requireAccess` on sensitive routes.
+- Staff access roles: `admin`, `office`, `compliance`, `finance`. OH records → compliance/admin + own worker only. Payroll/margin/aged debtors → finance/admin.
 
-## Deployment (Vercel)
-- `vercel.json` at root: installs `client/` + `server/` deps, builds `client/` → `client/dist`
-- `api/index.js` + `api/[...all].js` expose the Express app (`server/app.js`) as Vercel serverless functions at `/api/*`
-- Required Vercel env var: `DATABASE_URL` (Neon connection string)
-- `server/index.js` = local dev listener only; `server/app.js` = shared Express app (no listen)
+## Route map (server/routes/)
+- `auth.js` login/logout/me · `accounts.js` account CRUD + access roles · `public.js` registration (draft→submit, resume token, doc upload, auto-ack) + phone-signing tokens
+- `portal.js` worker (docs, OH, availability, offers, confirm/ack/sign, export) + client (requests, rota, timesheets sign, shared profiles) + supervisor (rota)
+- `requests.js` `/api/requests`, `/api/availability` — request log, availability board, `/requests/:id/eligible` allocation context, `/requests/:id/offer|allocate`, `/shifts/:id/reoffer`, `/candidates/:id/first-choice`
+- `invoices.js` — sign-links, paper entry, query/resolve, approve gate, invoices CRUD, aged debtors, payroll export (PAYE/Ltd), margin, actual-vs-booked
+- `admin.js` `/api/admin/*` — audit log, settings get/put, retention purge (dry-run first), SAR export/erase, `/export-all` (full JSON), operational reports (7.x), `/digest`
+- `candidates.js`, `clients.js`, `compliance.js`, `shifts.js`, `messages.js`, `files.js` + legacy CRM routes (vacancies, placements, activities, tasks, dashboard, reports, users, cvmatch)
 
-## AI CV Screening
-- Vacancy detail → "AI CV Screening" card. Upload PDF/DOCX/TXT or paste text → `POST /api/vacancies/:id/match-cv` (multer memory storage, 5MB)
-- `server/lib/matcher.js`: `extractCvText` (pdf-parse/mammoth) + `matchCv` — uses Anthropic Claude when `ANTHROPIC_API_KEY` env var is set (model via `ANTHROPIC_MODEL`, default `claude-sonnet-4-5`), else falls back to a heuristic skills/requirements matcher
-- Results persist in `cv_matches` table; listed via `GET /api/vacancies/:id/cv-matches`
+## Key business rules (spec refs)
+- **Human allocation (3.8)**: `/requests/:id/eligible` returns availability/compliance/travel/continuity/block/first-choice context; no auto-assignment. `auto_ranking` setting off by default.
+- **Booking blocks (2.4, 3.6, 3.11)**: `workerComplianceFor(candidate, client)` in `lib/compliance.js` gates shift create; double-booking guard (overridable `force`); `candidate_blocks` = do-not-offer.
+- **Timesheets (6.x)**: never expose rates to worker/client views; dual signatures (`worker_sig_*`, `client_sig_*` + `sign_tokens` for phone links); `timesheet_locked` when both signed; query flow via `timesheet_queries`; `approved` status = invoice gate (6.10c); uplifts (night/weekend/bank-holiday) via settings in `lib/invoices.js` `upliftFor`.
+- **Data rights**: worker self-export `/portal/export`; staff SAR `/admin/candidates/:id/export`; erase anonymises (blocked with upcoming shifts); retention purge dry-run→apply; `/admin/export-all` full JSON dump.
+- **Comms**: `notify()` in `lib/notify.js` queues to `messages`; wa.me/mailto links generated in response + on GET /messages. Every mutation should `await audit(req, 'noun.verb', entity_type, entity_id, detail)` (8.9).
+
+## Frontend structure
+- `App.tsx` `Gate`: `/register*` + `/sign/*` public; unauth → `Login`; `account.kind !== 'staff'` → `Portal` dispatcher (WorkerPortal/ClientPortal/SupervisorPortal); `/candidates/:id/file` → printable `ComplianceFile`.
+- New pages: `Requests` (requests + allocation drawer + availability board), `Invoices` (invoices/aged debtors/payroll/margin), `Settings` (accounts/settings/audit/data tabs), `Register`, `SignPage`, `ComplianceFile`; `Inbox` gained an Outbox tab; `Timesheets` gained signatures/query/paper actions; `Reports` gained Operations tab.
 
 ## Conventions
-- Postgres returns numerics/counts as strings — coerce with `+`/`Number()` in UI
-- Badge colors driven by `STATUS_STYLES` map in ui.tsx (add new statuses there)
-- Brand palette: brand-500 `#1863dc`, brand-700 `#0c56a4`, accent-500 `#01aef0`; headings use `font-display` (Laila)
+- Postgres numerics/counts arrive as strings — coerce with `+`/`Number()`.
+- Badge colors via `STATUS_STYLES` in `ui.tsx`. Brand: brand-500 `#1863dc`, brand-700 `#0c56a4`, accent-500 `#01aef0`; headings `font-display`.
+- `api.get/post/patch/put/del/upload` from `client/src/lib/api.ts`; never hard-code user IDs — use `useAuth().account`.
+- Postgres can't `ADD CONSTRAINT IF NOT EXISTS` inline — wrap in `DO $$ ... pg_constraint ... $$`.
+
+## Deployment (Vercel)
+- `vercel.json`: builds `client/` → `client/dist`; `api/index.js` + `api/[...all].js` expose `server/app.js` as serverless functions at `/api/*`.
+- Env vars: `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, optionally `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` (CV matching only; heuristic fallback). No cron — digest via `POST /api/admin/digest` (ping from an external scheduler if wanted).

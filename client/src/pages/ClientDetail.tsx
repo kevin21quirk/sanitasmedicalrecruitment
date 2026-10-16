@@ -6,8 +6,12 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { fmtDate, gbp2 } from '../lib/format';
-import { Activity, Client, ClientContact, Placement, Shift, User, Vacancy } from '../lib/types';
+import {
+  Activity, Client, ClientContact, ClientRequirement, Individual,
+  Placement, Shift, User, Vacancy,
+} from '../lib/types';
 import {
   Badge, Card, CardHeader, Avatar, Spinner, EmptyState, Modal,
   inputCls, btnPrimary, btnGhost, fmtStatus,
@@ -20,9 +24,11 @@ interface ClientDetailData extends Client {
   placements: Placement[];
   activities: Activity[];
   shifts: Shift[];
+  requirements: ClientRequirement[];
+  individuals: Individual[];
 }
 
-const TABS = ['Overview', 'Contacts', 'Vacancies', 'Workers', 'Shifts', 'Activity'] as const;
+const TABS = ['Overview', 'Contacts', 'Vacancies', 'Workers', 'Shifts', 'Site Setup', 'Activity'] as const;
 type Tab = (typeof TABS)[number];
 
 const STATUSES = ['active', 'prospect', 'inactive'];
@@ -71,6 +77,7 @@ function TableHead({ cols }: { cols: string[] }) {
 
 export default function ClientDetail() {
   const { id } = useParams();
+  const { account } = useAuth();
   const [data, setData] = useState<ClientDetailData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<Tab>('Overview');
@@ -86,7 +93,12 @@ export default function ClientDetail() {
 
   // contact modal
   const [contactOpen, setContactOpen] = useState(false);
-  const [contact, setContact] = useState({ name: '', role: '', email: '', phone: '', is_primary: false });
+  const [contact, setContact] = useState({ name: '', role: '', email: '', phone: '', is_primary: false, is_signatory: false });
+
+  // site setup state
+  const [newReq, setNewReq] = useState('');
+  const [newIndividual, setNewIndividual] = useState('');
+  const [instrDraft, setInstrDraft] = useState<string | null>(null);
 
   // activity composer
   const [act, setAct] = useState({ type: 'note', subject: '', body: '' });
@@ -155,13 +167,53 @@ export default function ClientDetail() {
         email: contact.email.trim() || null,
         phone: contact.phone.trim() || null,
         is_primary: contact.is_primary,
+        is_signatory: contact.is_signatory,
       });
       setContactOpen(false);
-      setContact({ name: '', role: '', email: '', phone: '', is_primary: false });
+      setContact({ name: '', role: '', email: '', phone: '', is_primary: false, is_signatory: false });
       load();
     } finally {
       setSaving(false);
     }
+  };
+
+  const addRequirement = async (docType: string, required = true) => {
+    const items = [...(data?.requirements ?? []).map((r) => ({ doc_type: r.doc_type, required: r.required }))];
+    const existing = items.findIndex((i) => i.doc_type === docType);
+    if (existing >= 0) items[existing].required = required; else items.push({ doc_type: docType, required });
+    await api.put(`/clients/${id}/requirements`, { items });
+    load();
+  };
+
+  const removeRequirement = async (docType: string) => {
+    const items = (data?.requirements ?? [])
+      .filter((r) => r.doc_type !== docType)
+      .map((r) => ({ doc_type: r.doc_type, required: r.required }));
+    await api.put(`/clients/${id}/requirements`, { items });
+    load();
+  };
+
+  const addIndividual = async () => {
+    if (!newIndividual.trim()) return;
+    await api.post(`/clients/${id}/individuals`, { name: newIndividual.trim() });
+    setNewIndividual('');
+    load();
+  };
+
+  const toggleIndividual = async (iid: number, is_active: boolean) => {
+    await api.patch(`/clients/${id}/individuals/${iid}`, { is_active });
+    load();
+  };
+
+  const saveInstructions = async () => {
+    await api.patch(`/clients/${id}`, { standing_instructions: instrDraft });
+    setInstrDraft(null);
+    load();
+  };
+
+  const toggleSignatory = async (contactId: number, is_signatory: boolean) => {
+    await api.patch(`/clients/${id}/contacts/${contactId}`, { is_signatory });
+    load();
   };
 
   const postActivity = async (e: FormEvent) => {
@@ -172,7 +224,7 @@ export default function ClientDetail() {
         type: act.type,
         subject: act.subject.trim(),
         body: act.body.trim() || null,
-        user_id: 2,
+        user_id: account?.userId ?? null,
       });
       setAct({ type: 'note', subject: '', body: '' });
       load();
@@ -377,7 +429,7 @@ export default function ClientDetail() {
           {data.contacts.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <TableHead cols={['Name', 'Role', 'Email', 'Phone', 'Primary']} />
+                <TableHead cols={['Name', 'Role', 'Email', 'Phone', 'Primary', 'Timesheet signatory']} />
                 <tbody className="divide-y divide-slate-50">
                   {data.contacts.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50">
@@ -387,6 +439,20 @@ export default function ClientDetail() {
                       <td className={clsx(tdCls, 'text-slate-600')}>{c.phone ?? '—'}</td>
                       <td className={tdCls}>
                         {c.is_primary && <Star className="h-4 w-4 fill-amber-400 text-amber-400" />}
+                      </td>
+                      <td className={tdCls}>
+                        <button
+                          onClick={() => toggleSignatory(c.id, !c.is_signatory)}
+                          className={clsx(
+                            'rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                            c.is_signatory
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                              : 'bg-slate-100 text-slate-500 ring-slate-500/20 hover:bg-slate-200'
+                          )}
+                          title="Authorised to sign timesheets"
+                        >
+                          {c.is_signatory ? 'Authorised' : 'Not authorised'}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -492,6 +558,109 @@ export default function ClientDetail() {
             <EmptyState icon={<CalendarDays className="h-5 w-5" />} title="No shifts" hint="Shifts at this home will appear here." />
           )}
         </Card>
+      )}
+
+      {/* Site Setup — per-site requirements (2.3), individuals (3.7), instructions (4.4) */}
+      {tab === 'Site Setup' && (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <Card>
+            <CardHeader
+              title="Required documents at this site"
+              subtitle="Baseline requirements apply everywhere; additions here block non-compliant bookings (2.3/2.4)"
+            />
+            <div className="px-5 py-4">
+              <ul className="divide-y divide-slate-50">
+                {(data.requirements ?? []).filter((r) => r.required).map((r) => (
+                  <li key={r.id} className="flex items-center justify-between py-2.5 text-sm">
+                    <span className="font-medium text-ink">{r.doc_type}</span>
+                    <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => removeRequirement(r.doc_type)}>
+                      Remove
+                    </button>
+                  </li>
+                ))}
+                {!data.requirements?.filter((r) => r.required).length && (
+                  <li className="py-2 text-xs text-slate-400">Baseline requirements only — no site-specific additions.</li>
+                )}
+              </ul>
+              <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+                <input
+                  className={inputCls}
+                  placeholder="e.g. PMVA, First Aid, Moving & Handling"
+                  value={newReq}
+                  onChange={(e) => setNewReq(e.target.value)}
+                />
+                <button
+                  className={btnGhost}
+                  onClick={() => { if (newReq.trim()) { addRequirement(newReq.trim()); setNewReq(''); } }}
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Baseline (all clients): DBS Enhanced, Right to Work, Passport/ID, Mandatory Training, plus NMC PIN for nurses.
+              </p>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Named individuals"
+              subtitle="People this site cares for — enables one-to-one continuity tracking (3.7)"
+            />
+            <div className="px-5 py-4">
+              <ul className="divide-y divide-slate-50">
+                {(data.individuals ?? []).map((i) => (
+                  <li key={i.id} className="flex items-center justify-between py-2.5 text-sm">
+                    <span className={clsx('font-medium', i.is_active ? 'text-ink' : 'text-slate-400 line-through')}>{i.name}</span>
+                    <button
+                      className="text-xs text-slate-400 hover:text-brand-600"
+                      onClick={() => toggleIndividual(i.id, !i.is_active)}
+                    >
+                      {i.is_active ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                  </li>
+                ))}
+                {!data.individuals?.length && <li className="py-2 text-xs text-slate-400">No individuals recorded.</li>}
+              </ul>
+              <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Mrs J Smith"
+                  value={newIndividual}
+                  onChange={(e) => setNewIndividual(e.target.value)}
+                />
+                <button className={btnGhost} onClick={addIndividual}><Plus className="h-4 w-4" /></button>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="xl:col-span-2">
+            <CardHeader
+              title="Standing instructions"
+              subtitle="Issued with every shift confirmation; workers must acknowledge them (4.4)"
+            />
+            <div className="px-5 py-4">
+              {instrDraft == null ? (
+                <div className="flex items-start justify-between gap-4">
+                  <p className="whitespace-pre-wrap text-sm text-slate-600">
+                    {data.standing_instructions || <span className="text-slate-400">No standing instructions set.</span>}
+                  </p>
+                  <button className={clsx(btnGhost, 'shrink-0 px-3 py-1.5 text-xs')} onClick={() => setInstrDraft(data.standing_instructions ?? '')}>
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <textarea rows={4} className={inputCls} value={instrDraft} onChange={(e) => setInstrDraft(e.target.value)} />
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button className={btnGhost} onClick={() => setInstrDraft(null)}>Cancel</button>
+                    <button className={btnPrimary} onClick={saveInstructions}>Save</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Activity */}
@@ -616,6 +785,15 @@ export default function ClientDetail() {
               onChange={(e) => setContact((f) => ({ ...f, is_primary: e.target.checked }))}
             />
             Primary contact
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500/30"
+              checked={contact.is_signatory}
+              onChange={(e) => setContact((f) => ({ ...f, is_signatory: e.target.checked }))}
+            />
+            Authorised timesheet signatory
           </label>
           <div className="flex justify-end gap-2">
             <button type="button" className={btnGhost} onClick={() => setContactOpen(false)}>Cancel</button>

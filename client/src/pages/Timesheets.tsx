@@ -13,6 +13,7 @@ type TsStatus = Shift['timesheet_status'];
 const TABS: { key: TsStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'not_submitted', label: 'Not Submitted' },
+  { key: 'queried', label: 'Queried' },
   { key: 'submitted', label: 'Submitted' },
   { key: 'approved', label: 'Approved' },
   { key: 'paid', label: 'Paid' },
@@ -86,11 +87,50 @@ export default function Timesheets() {
 
   const patchStatus = async (id: number, timesheet_status: TsStatus) => {
     try {
-      await api.patch(`/shifts/${id}`, { timesheet_status });
+      if (timesheet_status === 'approved') {
+        // 6.10c — approval gate: requires signatures (or force) and locks the sheet
+        await api.post(`/shifts/${id}/approve`, {});
+      } else {
+        await api.patch(`/shifts/${id}`, { timesheet_status });
+      }
       setRows((prev) => prev?.map((r) => (r.id === id ? { ...r, timesheet_status } : r)) ?? prev);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed';
+      if (msg.includes('signature') && window.confirm(`${msg}`)) {
+        await api.post(`/shifts/${id}/approve`, { force: true });
+        fetchRows();
+        return;
+      }
+      alert(msg);
       fetchRows();
     }
+  };
+
+  const raiseQuery = async (id: number) => {
+    const note = window.prompt('What needs correcting? (sent to the worker, who re-signs)');
+    if (!note) return;
+    await api.post(`/shifts/${id}/query`, { note });
+    fetchRows();
+  };
+
+  const sendSignLink = async (id: number, kind: 'client_signature' | 'worker_signature') => {
+    try {
+      const res = await api.post<{ message: { wa_link?: string; mailto_link?: string } }>(
+        `/shifts/${id}/sign-link`, { kind });
+      const link = res.message.wa_link ?? res.message.mailto_link;
+      if (link) window.open(link, '_blank');
+      else alert('Signing link queued in the outbox.');
+    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+  };
+
+  const paperEntry = async (id: number) => {
+    const hours = window.prompt('Hours on the paper timesheet?');
+    if (!hours) return;
+    const signedBy = window.prompt('Who signed the paper form?') || 'Paper';
+    try {
+      await api.post(`/shifts/${id}/paper-entry`, { actual_hours: +hours, signed_by: signedBy });
+      fetchRows();
+    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
   };
 
   const bulkUpdate = async (from: TsStatus, next: TsStatus) => {
@@ -98,7 +138,8 @@ export default function Timesheets() {
     const targets = filtered.filter((r) => selected.has(r.id) && r.timesheet_status === from);
     for (const r of targets) {
       try {
-        await api.patch(`/shifts/${r.id}`, { timesheet_status: next });
+        if (next === 'approved') await api.post(`/shifts/${r.id}/approve`, { force: true });
+        else await api.patch(`/shifts/${r.id}`, { timesheet_status: next });
       } catch {
         // continue with the rest; a refetch below reconciles state
       }
@@ -224,17 +265,33 @@ export default function Timesheets() {
                       </Link>
                     </td>
                     <td className="px-4 py-3"><Badge value={r.shift_type} /></td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{r.hours}h</td>
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      {r.hours}h
+                      {r.actual_hours != null && Number(r.actual_hours) !== Number(r.hours) && (
+                        <span className="ml-1 text-amber-600" title="Actual differs from booked (6.9)">→ {r.actual_hours}h</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs font-medium text-ink">{gbp2(r.pay_amount)}</td>
                     <td className="px-4 py-3 text-xs font-medium text-ink">{gbp2(r.charge_amount)}</td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <Badge value={r.timesheet_status} />
+                        <span className="flex gap-0.5" title="Signatures">
+                          <span className={clsx('rounded px-1 text-[9px] font-semibold', r.worker_sig_at ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>W</span>
+                          <span className={clsx('rounded px-1 text-[9px] font-semibold', r.client_sig_at ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>C</span>
+                          {r.timesheet_locked && <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold text-slate-500" title="Locked (6.5)">🔒</span>}
+                        </span>
                         {action && (
                           <button className={actionBtn} onClick={() => patchStatus(r.id, action.next)}>
                             {action.label}
                           </button>
                         )}
+                      </div>
+                      <div className="mt-1 flex gap-1">
+                        <button className="text-[10px] text-slate-400 hover:text-brand-600" onClick={() => raiseQuery(r.id)}>Query</button>
+                        <button className="text-[10px] text-slate-400 hover:text-brand-600" onClick={() => sendSignLink(r.id, 'client_signature')}>Client link</button>
+                        <button className="text-[10px] text-slate-400 hover:text-brand-600" onClick={() => sendSignLink(r.id, 'worker_signature')}>Worker link</button>
+                        <button className="text-[10px] text-slate-400 hover:text-brand-600" onClick={() => paperEntry(r.id)}>Paper</button>
                       </div>
                     </td>
                   </tr>
