@@ -14,6 +14,7 @@ export interface Account {
   initials: string | null;
   color: string | null;
   photoFileId: number | null;
+  mustReset: boolean;
 }
 
 interface AuthCtx {

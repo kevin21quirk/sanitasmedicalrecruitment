@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { AuthProvider, useAuth } from './lib/auth';
+import { api } from './lib/api';
 import { Avatar } from './components/ui';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -206,6 +207,46 @@ function StaffApp() {
   );
 }
 
+// Forced password change when an account was created/reset by staff (must_reset).
+function ForceReset() {
+  const { account, logout, refresh } = useAuth();
+  const [f, setF] = useState({ current: '', next: '', confirm: '' });
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (f.next !== f.confirm) return setErr('New passwords do not match');
+    if (f.next.length < 8) return setErr('Password must be at least 8 characters');
+    setBusy(true); setErr('');
+    try {
+      await api.post('/auth/change-password', { current: f.current, next: f.next });
+      await refresh();
+    } catch (e2) { setErr(e2 instanceof Error ? e2.message : 'Failed'); setBusy(false); }
+  };
+  const inp = 'w-full rounded-xl border border-slate-300/60 bg-white/70 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20';
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <form onSubmit={submit} className="glass-pop w-full max-w-sm rounded-3xl p-7 animate-pop-in">
+        <img src="/sanitaslogo.png" alt="Sanitas" className="h-9 w-auto" />
+        <h1 className="mt-4 font-display text-xl font-semibold">Set your password</h1>
+        <p className="mt-1 text-xs text-slate-500">
+          {account?.name}, your password was set by the office — choose a new one to continue.
+        </p>
+        <div className="mt-4 space-y-3">
+          <input className={inp} type="password" placeholder="Temporary password" value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} required />
+          <input className={inp} type="password" placeholder="New password (min 8 chars)" value={f.next} onChange={(e) => setF({ ...f, next: e.target.value })} required />
+          <input className={inp} type="password" placeholder="Confirm new password" value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} required />
+          {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
+        </div>
+        <button className="mt-4 w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50" disabled={busy}>
+          {busy ? 'Saving…' : 'Set password & continue'}
+        </button>
+        <button type="button" onClick={logout} className="mt-2 w-full text-xs text-slate-400 hover:text-slate-600">Sign out</button>
+      </form>
+    </div>
+  );
+}
+
 function Gate() {
   const { account, loading } = useAuth();
   const location = useLocation();
@@ -233,6 +274,7 @@ function Gate() {
   }
 
   if (!account) return <Login />;
+  if (account.mustReset) return <ForceReset />;
   if (account.kind !== 'staff') return <Portal account={account} />;
   // Printable compliance file renders without the app shell (2.11)
   if (/^\/candidates\/\d+\/file$/.test(location.pathname)) return <ComplianceFile />;

@@ -291,6 +291,16 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
     load();
   };
 
+  const [resetFor, setResetFor] = useState<AccountRow | null>(null);
+  const [resetPw, setResetPw] = useState('');
+  const [resetErr, setResetErr] = useState('');
+  const doReset = async () => {
+    try {
+      await api.patch(`/accounts/${resetFor!.id}`, { reset_password: resetPw });
+      setResetFor(null); setResetPw(''); setResetErr('');
+    } catch (e) { setResetErr(e instanceof Error ? e.message : 'Reset failed'); }
+  };
+
   if (!rows) return <Spinner />;
   return (
     <Card>
@@ -309,13 +319,43 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
                 {a.last_login_at && ` · last login ${fmtDateTime(a.last_login_at)}`}
               </p>
             </div>
-            <button className={a.is_active ? 'text-xs text-slate-400 hover:text-red-500' : 'text-xs text-emerald-600 hover:underline'}
-              onClick={() => toggle(a)}>
-              {a.is_active ? 'Deactivate' : 'Reactivate'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button className="text-xs text-slate-400 hover:text-brand-600"
+                onClick={() => { setResetFor(a); setResetPw(''); setResetErr(''); }}>
+                Reset password
+              </button>
+              <button className={a.is_active ? 'text-xs text-slate-400 hover:text-red-500' : 'text-xs text-emerald-600 hover:underline'}
+                onClick={() => toggle(a)}>
+                {a.is_active ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
           </li>
         ))}
       </ul>
+
+      {resetFor && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setResetFor(null)}>
+          <div className="w-full max-w-md glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-display text-lg font-semibold">Reset password</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {resetFor.staff_name ?? resetFor.worker_name ?? resetFor.contact_name ?? resetFor.client_name ?? resetFor.email}
+              <span className="text-slate-400"> ({resetFor.email})</span>
+            </p>
+            <div className="mt-4 space-y-3">
+              <input className={inputCls} type="password" placeholder="New temporary password (min 8 chars)"
+                value={resetPw} onChange={(e) => setResetPw(e.target.value)} autoFocus />
+              <p className="text-[11px] text-slate-400">
+                Their live sessions end immediately and they'll be asked to set a new password on next sign-in.
+              </p>
+              {resetErr && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{resetErr}</p>}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className={btnGhost} onClick={() => setResetFor(null)}>Cancel</button>
+              <button className={btnPrimary} onClick={doReset} disabled={resetPw.length < 8}>Reset & sign out</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {creating && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setCreating(false)}>

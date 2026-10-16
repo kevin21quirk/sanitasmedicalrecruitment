@@ -75,6 +75,7 @@ export async function attachAccount(req, _res, next) {
         initials: row.initials,
         color: row.color,
         photoFileId: row.photo_file_id,
+        mustReset: !!row.must_reset,
       };
       req.sessionToken = token;
     }
