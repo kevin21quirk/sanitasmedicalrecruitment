@@ -2,7 +2,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { put, del, getDownloadUrl } from '@vercel/blob';
+import { put, del, get } from '@vercel/blob';
 import { query } from '../db.js';
 
 // Local-dev fallback store (gitignored). Production always uses Vercel Blob.
@@ -63,12 +63,15 @@ export async function streamFile(file, res, { inline = false } = {}) {
     try { buf = fs.readFileSync(path.join(LOCAL_DIR, file.blob_url.slice(6))); }
     catch { return res.status(404).json({ error: 'Local file missing' }); }
   } else {
-    // Private store: mint a short-lived signed URL server-side, then stream it
-    // through the proxy — storage URLs are never handed to the browser (8.4).
-    const url = getDownloadUrl(file.blob_url); // reads BLOB_READ_WRITE_TOKEN from env
-    const upstream = await fetch(url);
-    if (!upstream.ok) return res.status(502).json({ error: 'File fetch failed' });
-    buf = Buffer.from(await upstream.arrayBuffer());
+    // Private store: the SDK's get() authorizes with the read-write token and
+    // streams the content — blob URLs are never handed to the browser (8.4).
+    // The host suffix tells us which access mode the file was uploaded with.
+    const access = file.blob_url.includes('.private.blob.') ? 'private' : 'public';
+    const got = await get(file.blob_url, { access, token: process.env.BLOB_READ_WRITE_TOKEN }).catch(() => null);
+    if (!got || got.statusCode !== 200 || !got.stream) {
+      return res.status(404).json({ error: 'File not found in storage' });
+    }
+    buf = Buffer.from(await new Response(got.stream).arrayBuffer());
   }
   res.setHeader('Content-Type', file.mime || 'application/octet-stream');
   res.setHeader('Content-Disposition',
