@@ -1,5 +1,5 @@
 import multer from 'multer';
-import { put, del } from '@vercel/blob';
+import { put, del, getDownloadUrl } from '@vercel/blob';
 import { query } from '../db.js';
 
 export const upload = multer({
@@ -16,7 +16,8 @@ export async function storeFile({ buffer, filename, mime, ownerType, ownerId, la
   let blobUrl = null;
   if (hasBlob() && buffer) {
     const blob = await put(`sanitas/${ownerType}/${ownerId}/${Date.now()}-${filename}`, buffer, {
-      access: 'public',
+      // private store — reads require the token (set BLOB_ACCESS=public to override)
+      access: process.env.BLOB_ACCESS === 'public' ? 'public' : 'private',
       contentType: mime || 'application/octet-stream',
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
@@ -40,7 +41,10 @@ export async function deleteFile(id) {
 // this proxy after the route's own authorisation check.
 export async function streamFile(file, res) {
   if (!file.blob_url) return res.status(404).json({ error: 'File content not stored (no blob token configured)' });
-  const upstream = await fetch(file.blob_url);
+  // Private store: mint a short-lived signed URL server-side, then stream it
+  // through the proxy — storage URLs are never handed to the browser (8.4).
+  const url = getDownloadUrl(file.blob_url); // reads BLOB_READ_WRITE_TOKEN from env
+  const upstream = await fetch(url);
   if (!upstream.ok) return res.status(502).json({ error: 'File fetch failed' });
   res.setHeader('Content-Type', file.mime || 'application/octet-stream');
   res.setHeader('Content-Disposition', `attachment; filename="${(file.filename || 'file').replace(/"/g, '')}"`);
