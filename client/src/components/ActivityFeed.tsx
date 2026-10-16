@@ -23,9 +23,9 @@ export function ActivityFeed({ activities, showEntity = false }: { activities: A
         return (
           <li key={a.id} className="relative flex gap-3 pb-5">
             {i < activities.length - 1 && (
-              <span className="absolute left-[17px] top-9 h-full w-px bg-slate-100" aria-hidden />
+              <span className="absolute left-[17px] top-9 h-full w-px bg-slate-900/5" aria-hidden />
             )}
-            <span className="z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-4 ring-white">
+            <span className="z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 ring-4 ring-white">
               <Icon className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
@@ -35,7 +35,7 @@ export function ActivityFeed({ activities, showEntity = false }: { activities: A
                   <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{a.direction}</span>
                 )}
                 {showEntity && a.entity_name && (
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                  <span className="rounded bg-slate-900/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
                     {a.entity_type}: {a.entity_name}
                   </span>
                 )}

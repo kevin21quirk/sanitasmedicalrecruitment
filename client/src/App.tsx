@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { AuthProvider, useAuth } from './lib/auth';
+import { Avatar } from './components/ui';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SignPage from './pages/SignPage';
@@ -46,13 +47,20 @@ const NAV = [
 
 function Logo() {
   return (
-    <div className="px-5 py-5">
-      <div className="flex items-center justify-center rounded-xl bg-white px-3 py-2.5 shadow-sm">
+    <div className="px-4 pt-5 pb-4">
+      <div className="flex items-center justify-center rounded-2xl bg-white/95 px-3 py-2.5 shadow-sm ring-1 ring-white/60">
         <img src="/sanitaslogo.png" alt="Sanitas Medical Recruitment" className="h-10 w-auto" />
       </div>
     </div>
   );
 }
+
+const NAV_GROUPS: { label: string; items: typeof NAV }[] = [
+  { label: 'Overview', items: NAV.filter((n) => ['/'].includes(n.to)) },
+  { label: 'Recruitment', items: NAV.filter((n) => ['/candidates', '/clients', '/vacancies', '/placements'].includes(n.to)) },
+  { label: 'Operations', items: NAV.filter((n) => ['/shifts', '/requests', '/timesheets', '/invoices', '/compliance'].includes(n.to)) },
+  { label: 'Workspace', items: NAV.filter((n) => ['/inbox', '/reports', '/settings'].includes(n.to)) },
+];
 
 function StaffApp() {
   const [navOpen, setNavOpen] = useState(false);
@@ -78,7 +86,7 @@ function StaffApp() {
 
       {/* Sidebar — off-canvas drawer on mobile, fixed rail on desktop */}
       <aside className={clsx(
-        'fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-gradient-to-b from-brand-700 via-brand-800 to-brand-950 transition-transform duration-200 ease-out',
+        'glass-dark fixed inset-y-0 left-0 z-40 flex w-60 flex-col transition-transform duration-200 ease-out',
         navOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}>
         <div className="relative">
@@ -91,35 +99,42 @@ function StaffApp() {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                clsx(
-                  'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors',
-                  isActive
-                    ? 'bg-white/15 text-white shadow-inner'
-                    : 'text-brand-100/80 hover:bg-white/10 hover:text-white'
-                )
-              }
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </NavLink>
+        <nav className="scroll-thin flex-1 space-y-4 overflow-y-auto px-3 pb-4">
+          {NAV_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-200/60">{g.label}</p>
+              <div className="space-y-0.5">
+                {g.items.map(({ to, label, icon: Icon, end }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={end}
+                    className={({ isActive }) =>
+                      clsx(
+                        'group flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all',
+                        isActive
+                          ? 'bg-white/15 text-white shadow-inner ring-1 ring-white/15'
+                          : 'text-brand-100/75 hover:bg-white/8 hover:text-white'
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         <div className="border-t border-white/10 px-5 py-4">
-          <p className="text-[10px] uppercase tracking-wider text-brand-300">Sanitas CRM v1.0</p>
+          <p className="text-[10px] uppercase tracking-wider text-brand-300">Sanitas Ops v2.0</p>
           <p className="mt-0.5 text-[11px] text-brand-200">0800 999 8222</p>
         </div>
       </aside>
 
       {/* Main */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6">
+        <header className="glass sticky top-0 z-20 flex h-14 items-center justify-between gap-3 !rounded-none !border-x-0 !border-t-0 px-4 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={() => setNavOpen(true)}
@@ -133,7 +148,7 @@ function StaffApp() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 placeholder="Search candidates, clients, vacancies…"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="w-full rounded-xl border border-slate-200/70 bg-white/60 py-1.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const q = (e.target as HTMLInputElement).value;
@@ -147,13 +162,10 @@ function StaffApp() {
             <NavLink to="/compliance" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <Bell className="h-4.5 w-4.5" />
             </NavLink>
-            <div className="flex items-center gap-2.5 border-l border-slate-200 pl-3">
-              <span
-                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white"
-                style={{ backgroundColor: account?.color || '#1863dc' }}
-              >
-                {initials}
-              </span>
+            <div className="flex items-center gap-2.5 border-l border-slate-200/70 pl-3">
+              <NavLink to="/settings" title="My profile">
+                <Avatar name={account?.name} initials={initials} color={account?.color} photoId={account?.photoFileId} size="sm" />
+              </NavLink>
               <div className="hidden leading-tight sm:block">
                 <p className="text-xs font-semibold text-ink">{account?.name}</p>
                 <p className="text-[10px] capitalize text-slate-500">{account?.accessRole || 'staff'}</p>
@@ -169,7 +181,7 @@ function StaffApp() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6 animate-fade-in" key={location.pathname}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/candidates" element={<Candidates />} />

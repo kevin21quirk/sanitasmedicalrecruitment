@@ -147,7 +147,7 @@ export default function InboxPage() {
         title="Communications"
         subtitle={`${activities.length} touchpoints logged · ${calls} calls · ${emails} emails`}
       >
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+        <div className="flex gap-1 rounded-xl bg-slate-900/5 p-1">
           {(['activity', 'outbox'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
@@ -164,7 +164,7 @@ export default function InboxPage() {
         {/* Filter rail */}
         <div className="w-full shrink-0 lg:w-60">
           <Card>
-            <div className="border-b border-slate-100 px-4 py-3">
+            <div className="border-b border-slate-200/60 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Activity type</p>
             </div>
             <div className="space-y-0.5 px-2 py-2">
@@ -177,7 +177,7 @@ export default function InboxPage() {
                     onClick={() => setTypeFilter(key)}
                     className={clsx(
                       'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors',
-                      active ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'
+                      active ? 'bg-brand-500/10 text-brand-700' : 'text-slate-600 hover:bg-brand-500/5'
                     )}
                   >
                     <Icon className={clsx('h-4 w-4', active ? 'text-brand-600' : 'text-slate-400')} />
@@ -187,7 +187,7 @@ export default function InboxPage() {
                 );
               })}
             </div>
-            <div className="border-b border-slate-100 px-4 py-3">
+            <div className="border-b border-slate-200/60 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Team member</p>
             </div>
             <div className="space-y-0.5 px-2 py-2">
@@ -195,7 +195,7 @@ export default function InboxPage() {
                 onClick={() => setUserFilter(0)}
                 className={clsx(
                   'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors',
-                  userFilter === 0 ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'
+                  userFilter === 0 ? 'bg-brand-500/10 text-brand-700' : 'text-slate-600 hover:bg-brand-500/5'
                 )}
               >
                 <Users className={clsx('h-4 w-4', userFilter === 0 ? 'text-brand-600' : 'text-slate-400')} />
@@ -209,7 +209,7 @@ export default function InboxPage() {
                     onClick={() => setUserFilter(active ? 0 : u.id)}
                     className={clsx(
                       'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors',
-                      active ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'
+                      active ? 'bg-brand-500/10 text-brand-700' : 'text-slate-600 hover:bg-brand-500/5'
                     )}
                   >
                     <Avatar initials={u.initials} color={u.color} name={u.name} size="xs" />
@@ -354,7 +354,7 @@ function Outbox() {
             {filter === 'queued' ? 'Nothing waiting — confirmations and reminders land here automatically.' : 'No messages.'}
           </p>
         ) : (
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {msgs.map((m) => (
               <li key={m.id} className="px-5 py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -394,12 +394,12 @@ function Outbox() {
             ))}
           </ul>
         )}
-        {!!queued.length && <p className="border-t border-slate-100 px-5 py-2 text-[11px] text-slate-400">{queued.length} queued</p>}
+        {!!queued.length && <p className="border-t border-slate-200/60 px-5 py-2 text-[11px] text-slate-400">{queued.length} queued</p>}
       </Card>
 
       {composing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={() => setComposing(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setComposing(false)}>
+          <div className="w-full max-w-lg glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">New message</h2>
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">

@@ -3,7 +3,7 @@ import { Download, History, RefreshCw, Save, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
 import { fmtDateTime } from '../lib/format';
-import { Card, CardHeader, PageHeader, Spinner, btnPrimary, btnGhost, inputCls } from '../components/ui';
+import { Card, CardHeader, PageHeader, PhotoUpload, Spinner, btnPrimary, btnGhost, inputCls } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 interface AuditRow {
@@ -34,9 +34,9 @@ interface AccountRow {
 }
 
 export default function Settings() {
-  const { account } = useAuth();
+  const { account, refresh } = useAuth();
   const isAdmin = account?.accessRole === 'admin';
-  const [tab, setTab] = useState<'accounts' | 'settings' | 'audit' | 'data'>('accounts');
+  const [tab, setTab] = useState<'profile' | 'accounts' | 'settings' | 'audit' | 'data'>('profile');
   const [settings, setSettings] = useState<Record<string, any> | null>(null);
   const [dirty, setDirty] = useState<Record<string, any>>({});
   const [auditRows, setAuditRows] = useState<AuditRow[] | null>(null);
@@ -93,18 +93,33 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings & data" subtitle="Accounts, configuration, audit trail and data rights (0.x / 8.x)">
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-          {(['accounts', 'settings', 'audit', 'data'] as const).map((t) => (
-            <button key={t} disabled={t !== 'accounts' && !isAdmin}
+      <PageHeader eyebrow="Workspace" title="Settings & data" subtitle="Your profile, accounts, configuration, audit trail and data rights">
+        <div className="flex gap-1 rounded-xl bg-slate-900/5 p-1">
+          {(['profile', 'accounts', 'settings', 'audit', 'data'] as const).map((t) => (
+            <button key={t} disabled={!['profile', 'accounts'].includes(t) && !isAdmin}
               onClick={() => { setTab(t); if (t === 'audit' && !auditRows) loadAudit(); }}
-              className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize disabled:opacity-40',
+              className={clsx('rounded-lg px-4 py-1.5 text-xs font-medium capitalize disabled:opacity-40',
                 tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-              {t === 'audit' ? 'Audit log' : t === 'data' ? 'Data rights' : t === 'settings' ? 'Settings' : 'Accounts'}
+              {t === 'audit' ? 'Audit log' : t === 'data' ? 'Data rights' : t === 'settings' ? 'Settings' : t === 'profile' ? 'My profile' : 'Accounts'}
             </button>
           ))}
         </div>
       </PageHeader>
+
+      {tab === 'profile' && account && (
+        <Card className="max-w-xl">
+          <CardHeader title="My profile" subtitle="How you appear across the system" />
+          <div className="flex items-center gap-5 px-5 py-5">
+            <PhotoUpload endpoint={`/users/${account.userId}/photo`} name={account.name} photoId={account.photoFileId} color={account.color} size="xl" onDone={refresh} />
+            <div>
+              <p className="font-display text-lg font-semibold text-ink">{account.name}</p>
+              <p className="text-sm text-slate-500">{account.email}</p>
+              <p className="mt-1 text-xs capitalize text-slate-400">{account.accessRole} access</p>
+              <p className="mt-3 text-[11px] text-slate-400">Click the avatar to upload a photo (JPG/PNG, under 3MB).</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {tab === 'accounts' && <AccountsTab isAdmin={isAdmin} />}
 
@@ -113,7 +128,7 @@ export default function Settings() {
           <CardHeader title="Configuration" subtitle="Changes apply immediately and are audited"
             action={<button className={btnPrimary} disabled={!Object.keys(dirty).length} onClick={save}><Save className="h-4 w-4" /> Save</button>} />
           {!settings ? <Spinner /> : (
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-slate-200/50">
               {Object.entries(SETTING_LABELS).map(([key, meta]) => {
                 const val = key in dirty ? dirty[key] : settings[key];
                 return (
@@ -158,7 +173,7 @@ export default function Settings() {
               </div>
             } />
           {!auditRows ? <Spinner /> : (
-            <ul className="scroll-thin max-h-[34rem] divide-y divide-slate-50 overflow-y-auto">
+            <ul className="scroll-thin max-h-[34rem] divide-y divide-slate-200/50 overflow-y-auto">
               {auditRows.map((a) => (
                 <li key={a.id} className="px-5 py-2.5">
                   <div className="flex items-center justify-between text-sm">
@@ -281,7 +296,7 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
     <Card>
       <CardHeader title="Login accounts" subtitle="Issue and revoke portal logins — deactivation kills live sessions instantly (5.3)"
         action={<button className={btnPrimary} onClick={() => setCreating(true)}>New account</button>} />
-      <ul className="divide-y divide-slate-50">
+      <ul className="divide-y divide-slate-200/50">
         {rows.map((a) => (
           <li key={a.id} className="flex items-center justify-between px-5 py-2.5">
             <div>
@@ -303,8 +318,8 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
       </ul>
 
       {creating && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={() => setCreating(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setCreating(false)}>
+          <div className="w-full max-w-md glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">New login account</h2>
             <div className="mt-4 space-y-3">
               <select className={inputCls} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>

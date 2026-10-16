@@ -284,13 +284,13 @@ export default function Register() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
+    <div className="min-h-screen py-8">
       <div className="mx-auto max-w-2xl px-4">
         <div className="mb-6 flex items-center justify-between">
           <img src="/sanitaslogo.png" alt="Sanitas Medical Recruitment" className="h-10 w-auto" />
           <a href="/" className="text-xs text-slate-400 hover:text-slate-600"><X className="inline h-4 w-4" /></a>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="glass-pop rounded-3xl p-6 animate-pop-in sm:p-8">
           <h1 className="mb-1 font-display text-xl font-bold text-ink">Register with Sanitas</h1>
           <p className="mb-6 text-sm text-slate-500">Nurses, HCAs and support workers — join our agency.</p>
           {children}

@@ -1,8 +1,19 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
+import { upload, replacePhoto } from '../lib/files.js';
 
 const r = Router();
+
+// Care-home logo upload (multipart field "file", images only).
+r.post('/:id/logo', upload.single('file'), async (req, res, next) => {
+  try {
+    const stored = await replacePhoto({ table: 'clients', column: 'logo_file_id', id: +req.params.id,
+      file: req.file, uploadedBy: req.account?.id });
+    await audit(req, 'client.logo_updated', 'client', +req.params.id);
+    res.status(201).json({ logo_file_id: stored.id });
+  } catch (e) { e.status ? res.status(e.status).json({ error: e.message }) : next(e); }
+});
 
 r.get('/', async (req, res, next) => {
   try {

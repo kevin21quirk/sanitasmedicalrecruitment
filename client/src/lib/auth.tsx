@@ -13,6 +13,7 @@ export interface Account {
   name: string;
   initials: string | null;
   color: string | null;
+  photoFileId: number | null;
 }
 
 interface AuthCtx {

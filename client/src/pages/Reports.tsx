@@ -70,7 +70,7 @@ export default function Reports() {
   return (
     <div>
       <PageHeader title="Reports" subtitle="Agency performance — revenue, recruiters, compliance and shift outcomes.">
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+        <div className="flex gap-1 rounded-lg bg-slate-900/5 p-1">
           {(['performance', 'operations'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
@@ -88,7 +88,7 @@ export default function Reports() {
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map(({ label, value, icon: Icon, sub, tint }) => (
           <Card key={label} className="p-4">
-            <span className={clsx('flex h-8 w-8 items-center justify-center rounded-lg', tint ?? 'bg-brand-50 text-brand-600')}>
+            <span className={clsx('flex h-8 w-8 items-center justify-center rounded-lg', tint ?? 'bg-brand-500/10 text-brand-600')}>
               <Icon className="h-4 w-4" />
             </span>
             <p className="mt-3 text-2xl font-bold tracking-tight text-ink">{value}</p>
@@ -178,7 +178,7 @@ export default function Reports() {
         {/* Recruiter leaderboard */}
         <Card>
           <CardHeader title="Recruiter Leaderboard" subtitle="Placements and submissions by consultant" />
-          <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+          <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
             {recruiters.map((r, i) => {
               const conv = r.submissions ? Math.round((r.placements / r.submissions) * 100) : 0;
               return (
@@ -192,7 +192,7 @@ export default function Reports() {
                   <Avatar initials={r.initials} color={r.color} name={r.name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{r.name}</p>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-900/5">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-400"
                         style={{ width: `${(r.placements / maxPlacements) * 100}%` }}
@@ -213,7 +213,7 @@ export default function Reports() {
         {/* Compliance by role */}
         <Card>
           <CardHeader title="Compliance by Role" subtitle="Average compliance score per candidate role" />
-          <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+          <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
             {data.complianceByRole.map((r) => (
               <div key={r.role} className="flex items-center gap-3 px-5 py-3.5">
                 <div className="min-w-0 flex-1">
@@ -268,7 +268,7 @@ function OperationsReport() {
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
       <Card>
         <CardHeader title="Fill rate by client & week" subtitle="Requested vs filled (7.5)" />
-        <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+        <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
           {d.fill_rate.map((r, i) => (
             <div key={i} className="flex items-center justify-between px-5 py-2.5 text-sm">
               <div>
@@ -290,7 +290,7 @@ function OperationsReport() {
 
       <Card>
         <CardHeader title="Dropped confirmed shifts" subtitle="Cancellations & no-shows by worker (7.1)" />
-        <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+        <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
           {d.drops.map((w) => {
             const total = +w.dropped + +w.no_shows + +w.completed;
             const pct = total ? Math.round(((+w.dropped + +w.no_shows) / total) * 100) : 0;
@@ -320,7 +320,7 @@ function OperationsReport() {
 
       <Card>
         <CardHeader title="Non-placeable workers" subtitle={`${d.non_placeable.length} blocked by lapsed/missing docs (7.4)`} />
-        <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+        <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
           {d.non_placeable.map((w) => (
             <div key={w.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
               <span className="text-ink">{w.worker} <span className="text-[11px] text-slate-400">{w.role}</span></span>
@@ -333,7 +333,7 @@ function OperationsReport() {
 
       <Card className="xl:col-span-2">
         <CardHeader title="Site signatory notes" subtitle="Recorded at signing — searchable patterns by worker or client (6.10b)" />
-        <div className="scroll-thin max-h-60 divide-y divide-slate-50 overflow-y-auto">
+        <div className="scroll-thin max-h-60 divide-y divide-slate-200/50 overflow-y-auto">
           {d.timesheet_notes.map((n) => (
             <div key={n.shift_id} className="px-5 py-2.5 text-sm">
               <p className="text-ink">{n.worker_name} <span className="text-[11px] text-slate-400">@ {n.client_name} · {String(n.shift_date).slice(0, 10)}</span></p>

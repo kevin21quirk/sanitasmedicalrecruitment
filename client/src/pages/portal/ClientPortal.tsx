@@ -88,7 +88,7 @@ function Requests() {
         {!open_.length ? (
           <EmptyState icon={<ClipboardList className="h-5 w-5" />} title="Nothing open" hint="Use “Request cover” for urgent or planned shifts (4.9)." />
         ) : (
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {open_.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
                 <div>
@@ -113,7 +113,7 @@ function Requests() {
       {!!past.length && (
         <Card>
           <CardHeader title="History" />
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {past.map((r) => (
               <li key={r.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
                 <div>
@@ -129,8 +129,8 @@ function Requests() {
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setOpen(false)}>
+          <div className="w-full max-w-lg glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">Request cover</h2>
             <p className="mt-1 text-xs text-slate-500">Email to the office works too — requests land in the same list (4.7).</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -259,7 +259,7 @@ function Timesheets() {
       <Card>
         <CardHeader title="Awaiting your signature" subtitle="Authorised signatories only — sign to confirm hours worked (6.2)" />
         {!unsigned.length ? <p className="px-5 pb-4 text-xs text-slate-400">Nothing to sign.</p> : (
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {unsigned.map((t) => (
               <li key={t.id} className="flex items-center justify-between px-5 py-3">
                 <div>
@@ -275,7 +275,7 @@ function Timesheets() {
       {!!signed.length && (
         <Card>
           <CardHeader title="Signed" />
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {signed.map((t) => (
               <li key={t.id} className="px-5 py-2.5 text-sm">
                 <div className="flex items-center justify-between">
@@ -290,8 +290,8 @@ function Timesheets() {
       )}
 
       {signing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={() => setSigning(null)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setSigning(null)}>
+          <div className="w-full max-w-md glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">Sign timesheet</h2>
             <p className="mt-1 text-xs text-slate-500">{fmtDate(signing.shift_date)} — {signing.worker_name}, booked {signing.hours}h.</p>
             <div className="mt-4 space-y-3">
@@ -300,7 +300,7 @@ function Timesheets() {
                 <textarea className={clsx(inputCls, 'resize-none')} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Arrived 15 min early, great support with personal care." />
               </Field>
             </div>
-            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">Your name is recorded as the authorised signature. Once signed, the timesheet locks (6.5).</p>
+            <p className="mt-4 rounded-lg bg-slate-900/[0.035] px-3 py-2 text-[11px] text-slate-500">Your name is recorded as the authorised signature. Once signed, the timesheet locks (6.5).</p>
             <div className="mt-4 flex justify-end gap-2">
               <button className={btnGhost} onClick={() => setSigning(null)}>Cancel</button>
               <button className={btnPrimary} onClick={sign}>Sign</button>
@@ -322,7 +322,7 @@ function Workers() {
       {!data.workers.length ? (
         <EmptyState icon={<Users className="h-5 w-5" />} title="No workers yet" hint="Profiles appear after a worker's first shift at your site." />
       ) : (
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {data.workers.map((w) => (
             <li key={w.id} className="px-5 py-3">
               <div className="flex items-center justify-between">

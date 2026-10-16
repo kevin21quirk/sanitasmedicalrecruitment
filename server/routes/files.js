@@ -6,6 +6,16 @@ import { audit } from '../lib/audit.js';
 
 const r = Router();
 
+// Profile photos / logos — inline, any signed-in account (staff or portal).
+r.get('/:id/view', async (req, res, next) => {
+  try {
+    if (!req.account) return res.status(401).end();
+    const { rows } = await query(`SELECT * FROM files WHERE id = $1 AND owner_type = 'photo'`, [req.params.id]);
+    if (!rows[0]) return res.status(404).end();
+    await streamFile(rows[0], res, { inline: true });
+  } catch (e) { next(e); }
+});
+
 // 8.4 — files are fetched through this proxy after authorisation so the
 // underlying blob URL is never handed out.
 r.get('/:id/download', async (req, res, next) => {

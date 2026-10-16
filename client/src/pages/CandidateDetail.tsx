@@ -14,7 +14,7 @@ import {
   Placement, PlacementStage, RegisterCheck, Shift, User,
 } from '../lib/types';
 import {
-  Avatar, Badge, Card, CardHeader, EmptyState, Modal, Spinner,
+  Avatar, Badge, Card, CardHeader, EmptyState, Modal, PhotoUpload, Spinner,
   btnGhost, btnPrimary, fmtStatus, inputCls,
 } from '../components/ui';
 import { ActivityFeed } from '../components/ActivityFeed';
@@ -319,15 +319,15 @@ export default function CandidateDetail() {
       {backLink}
 
       {/* Header card */}
-      <Card className="mb-5 p-6">
+      <Card className="mb-5 p-6" solid>
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex min-w-0 items-start gap-5">
-            <Avatar name={full} size="lg" />
+            <PhotoUpload endpoint={`/candidates/${id}/photo`} name={full} photoId={c.photo_file_id} size="xl" onDone={load} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-display text-2xl font-bold text-ink">{full}</h1>
                 <Badge value={c.status} />
-                <span className={clsx(chip, 'bg-brand-50 text-brand-700 ring-brand-600/20')}>{c.role}</span>
+                <span className={clsx(chip, 'bg-brand-500/10 text-brand-700 ring-brand-600/20')}>{c.role}</span>
                 {c.nmc_pin && (
                   <span className={clsx(chip, 'bg-violet-50 text-violet-700 ring-violet-600/20')}>
                     <ShieldCheck className="h-3 w-3" /> NMC {c.nmc_pin}
@@ -374,7 +374,7 @@ export default function CandidateDetail() {
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map(({ label, value, icon: Icon, alert }) => (
           <Card key={label} className={clsx('flex items-center gap-3 p-4', alert && 'ring-1 ring-red-200')}>
-            <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', alert ? 'bg-red-50 text-red-500' : 'bg-brand-50 text-brand-600')}>
+            <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', alert ? 'bg-red-50 text-red-500' : 'bg-brand-500/10 text-brand-600')}>
               <Icon className="h-4 w-4" />
             </span>
             <div className="min-w-0">
@@ -398,7 +398,7 @@ export default function CandidateDetail() {
           >
             {t.label}
             {t.count != null && (
-              <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">{t.count}</span>
+              <span className="ml-1.5 rounded-full bg-slate-900/5 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">{t.count}</span>
             )}
           </button>
         ))}
@@ -409,7 +409,7 @@ export default function CandidateDetail() {
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <Card>
             <CardHeader title="Details" subtitle="Pay, availability & preferences" />
-            <dl className="divide-y divide-slate-50 px-5 py-2">
+            <dl className="divide-y divide-slate-200/50 px-5 py-2">
               <DetailRow label="Pay range" value={payRange} />
               <DetailRow label="Preferred shift" value={c.preferred_shift ? fmtStatus(c.preferred_shift) : '—'} />
               <DetailRow label="Employment" value={c.employment_pref ? fmtStatus(c.employment_pref) : '—'} />
@@ -488,7 +488,7 @@ export default function CandidateDetail() {
               <div className="scroll-thin overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       <th className="px-5 py-3">Type</th>
                       <th className="px-4 py-3">Reference</th>
                       <th className="px-4 py-3">Status</th>
@@ -499,13 +499,13 @@ export default function CandidateDetail() {
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-200/50">
                     {data.documents.map((d) => {
                       const du = daysUntil(d.expiry_date);
                       const isDbs = d.type.toLowerCase().includes('dbs');
                       const isNmc = d.type.toLowerCase().includes('nmc');
                       return (
-                        <tr key={d.id} className="transition-colors hover:bg-slate-50/70">
+                        <tr key={d.id} className="transition-colors hover:bg-brand-500/5">
                           <td className="px-5 py-3 font-medium text-ink">
                             {d.type}
                             {d.dbs_update_service && (
@@ -548,7 +548,7 @@ export default function CandidateDetail() {
                               {(isDbs || isNmc) && (
                                 <button
                                   onClick={() => { setCheckForm({ result: 'clear', identifier: d.reference_no ?? '', notes: '' }); setCheckOpen({ register: isNmc ? 'nmc' : 'dbs_update_service' }); }}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-brand-500/5"
                                   title={isNmc ? 'Record NMC register check' : 'Record DBS Update Service check'}
                                 >
                                   <ShieldCheck className="h-3 w-3 text-brand-500" /> Check
@@ -557,7 +557,7 @@ export default function CandidateDetail() {
                               {(d.status === 'pending' || d.status === 'missing') && (
                                 <button
                                   onClick={() => markVerified(d.id)}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-brand-500/5"
                                 >
                                   <CircleCheck className="h-3 w-3 text-emerald-500" /> Mark verified
                                 </button>
@@ -622,12 +622,12 @@ export default function CandidateDetail() {
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
+                    <tr className="border-b border-slate-200/60 text-left text-[11px] uppercase tracking-wide text-slate-400">
                       <th className="px-5 py-2.5">Record</th><th className="px-4 py-2.5">Kind</th>
                       <th className="px-4 py-2.5">Date</th><th className="px-4 py-2.5">Expires</th><th className="px-4 py-2.5">Result</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-200/50">
                     {data.oh_records.map((o) => (
                       <tr key={o.id}>
                         <td className="px-5 py-2.5 font-medium text-ink">{o.name}</td>
@@ -653,7 +653,7 @@ export default function CandidateDetail() {
             {!data.blocks?.length ? (
               <p className="px-5 pb-4 text-xs text-slate-400">No restrictions.</p>
             ) : (
-              <ul className="divide-y divide-slate-50">
+              <ul className="divide-y divide-slate-200/50">
                 {data.blocks.map((b) => (
                   <li key={b.id} className="flex items-center justify-between px-5 py-3 text-sm">
                     <div>
@@ -684,7 +684,7 @@ export default function CandidateDetail() {
             <div className="scroll-thin overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-200/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-5 py-3">Vacancy</th>
                     <th className="px-4 py-3">Client</th>
                     <th className="px-4 py-3">Stage</th>
@@ -693,9 +693,9 @@ export default function CandidateDetail() {
                     <th className="px-4 py-3">Start date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-200/50">
                   {data.placements.map((p) => (
-                    <tr key={p.id} className="transition-colors hover:bg-slate-50/70">
+                    <tr key={p.id} className="transition-colors hover:bg-brand-500/5">
                       <td className="px-5 py-3 font-medium">
                         {p.vacancy_id ? (
                           <Link to={`/vacancies/${p.vacancy_id}`} className="text-ink hover:text-brand-600">
@@ -716,7 +716,7 @@ export default function CandidateDetail() {
                           <select
                             value={p.stage}
                             onChange={(e) => advanceStage(p.id, e.target.value)}
-                            className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-50 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                            className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-500 hover:bg-brand-500/5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                             title="Move stage"
                           >
                             {PLACEMENT_STAGES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
@@ -747,7 +747,7 @@ export default function CandidateDetail() {
             <div className="scroll-thin overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-200/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-5 py-3">Date</th>
                     <th className="px-4 py-3">Client</th>
                     <th className="px-4 py-3">Type</th>
@@ -757,9 +757,9 @@ export default function CandidateDetail() {
                     <th className="px-4 py-3">Timesheet</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-200/50">
                   {data.shifts.map((s) => (
-                    <tr key={s.id} className="transition-colors hover:bg-slate-50/70">
+                    <tr key={s.id} className="transition-colors hover:bg-brand-500/5">
                       <td className="px-5 py-3 text-xs font-medium text-ink whitespace-nowrap">{fmtDate(s.shift_date)}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{s.client_name}</td>
                       <td className="px-4 py-3"><Badge value={s.shift_type} /></td>

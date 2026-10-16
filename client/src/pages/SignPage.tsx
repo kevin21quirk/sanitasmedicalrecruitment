@@ -46,8 +46,8 @@ export default function SignPage() {
   const isClient = info?.kind === 'client_signature';
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="w-full max-w-md glass-pop rounded-3xl p-6 animate-pop-in sm:p-8">
         <img src="/sanitaslogo.png" alt="Sanitas Medical Recruitment" className="h-9 w-auto" />
         <h1 className="mt-4 font-display text-xl font-bold text-ink">Timesheet signature</h1>
 
@@ -62,7 +62,7 @@ export default function SignPage() {
           </div>
         ) : info && (
           <div className="mt-5 space-y-4">
-            <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
+            <div className="rounded-xl bg-slate-900/[0.035] px-4 py-3 text-sm">
               <p className="font-medium text-ink">{info.shift.worker_name}</p>
               <p className="mt-0.5 text-xs text-slate-500">
                 {info.shift.client_name} · {fmtDate(info.shift.date)} · {info.shift.start?.slice(0, 5)}–{info.shift.end?.slice(0, 5)}

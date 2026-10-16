@@ -52,7 +52,7 @@ export default function Invoices() {
         <button className={btnPrimary} onClick={() => setNewOpen(true)}><Plus className="h-4 w-4" /> New invoice</button>
       </PageHeader>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+      <div className="mb-4 flex gap-1 rounded-lg bg-slate-900/5 p-1 w-fit">
         {(['invoices', 'debtors', 'payroll', 'margin'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
@@ -68,7 +68,7 @@ export default function Invoices() {
             {!invoices.length ? (
               <EmptyState icon={<FileText className="h-5 w-5" />} title="No invoices yet" hint="Approve timesheets, then generate an invoice per client." />
             ) : (
-              <ul className="divide-y divide-slate-50">
+              <ul className="divide-y divide-slate-200/50">
                 {invoices.map((i) => (
                   <li key={i.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <button className="text-left" onClick={() => openDetail(i.id)}>
@@ -125,8 +125,8 @@ function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose:
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed'); setSaving(false); }
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-md glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-display text-lg font-semibold">Generate invoice</h2>
         <p className="mt-1 text-xs text-slate-500">Pulls all approved, uninvoiced timesheets for the client in the period (6.6).</p>
         {err && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{err}</p>}
@@ -154,8 +154,8 @@ function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose:
 
 function InvoiceDetail({ inv, onClose }: { inv: Invoice & { lines: any[]; client_address?: string; billing_email?: string }; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={onClose}>
+      <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
             <h2 className="font-display text-lg font-semibold">{inv.number}</h2>
@@ -164,10 +164,10 @@ function InvoiceDetail({ inv, onClose }: { inv: Invoice & { lines: any[]; client
           <Badge value={inv.status} />
         </div>
         <table className="mt-4 w-full text-sm">
-          <thead><tr className="border-b border-slate-100 text-left text-[10px] uppercase tracking-wide text-slate-400">
+          <thead><tr className="border-b border-slate-200/60 text-left text-[10px] uppercase tracking-wide text-slate-400">
             <th className="py-2">Description</th><th>Hours</th><th>Rate</th><th className="text-right">Amount</th>
           </tr></thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-200/50">
             {inv.lines.map((l) => (
               <tr key={l.id}>
                 <td className="py-2 pr-2 text-xs text-ink">{l.description}</td>
@@ -209,7 +209,7 @@ function AgedDebtors() {
       </div>
       <Card>
         <CardHeader title="Outstanding invoices" subtitle="6.11 — chase anything past 30 days" />
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {rows.map((r) => (
             <li key={r.invoice_id} className="flex items-center justify-between px-5 py-3 text-sm">
               <div>
@@ -255,7 +255,7 @@ function Payroll() {
             subtitle={group === 'paye'
               ? `${data.totals.paye_hours}h · ${gbp2(data.totals.paye_amount)}`
               : `${data.totals.ltd_hours}h · ${gbp2(data.totals.ltd_amount)}`} />
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {(group === 'paye' ? data.paye : data.ltd).map((o: any) => (
               <li key={o.shift_id} className="flex items-center justify-between px-5 py-2 text-sm">
                 <span className="text-ink">{o.worker} <span className="text-[11px] text-slate-400">· {fmtDate(o.date)} · {fmtStatus(o.shift_type)}{o.uplift > 1 ? ` · ${o.uplift}× uplift` : ''}</span></span>
@@ -288,7 +288,7 @@ function Margin() {
         {data && (
           <div className="grid grid-cols-2 gap-3 px-5 pb-4 sm:grid-cols-5">
             {[['Charge', data.totals.charge], ['Pay', data.totals.pay], ["Employer NI", data.totals.ni], ['Payroll fees', data.totals.fee], ['Margin', data.totals.margin]].map(([k, v]) => (
-              <div key={k as string} className="rounded-lg bg-slate-50 px-3 py-2">
+              <div key={k as string} className="rounded-lg bg-slate-900/[0.035] px-3 py-2">
                 <p className="text-[10px] uppercase tracking-wide text-slate-400">{k}</p>
                 <p className={clsx('text-sm font-bold', k === 'Margin' ? 'text-emerald-600' : 'text-ink')}>{gbp2(v as number)}</p>
               </div>
@@ -298,7 +298,7 @@ function Margin() {
       </Card>
       {data && (
         <Card>
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {data.lines.map((l) => (
               <li key={l.shift_id} className="flex items-center justify-between px-5 py-2 text-sm">
                 <span className="text-ink">{fmtDate(l.date)} — {l.worker} <span className="text-[11px] text-slate-400">@ {l.client}</span></span>

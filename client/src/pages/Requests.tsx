@@ -59,7 +59,7 @@ export default function Requests() {
         <button className={btnPrimary} onClick={() => setNewOpen(true)}><Plus className="h-4 w-4" /> Log request</button>
       </PageHeader>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+      <div className="mb-4 flex gap-1 rounded-lg bg-slate-900/5 p-1 w-fit">
         {(['requests', 'availability'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
@@ -75,7 +75,7 @@ export default function Requests() {
             {!requests.length ? (
               <EmptyState icon={<ClipboardList className="h-5 w-5" />} title="No requests" hint="Log a client request to start allocating." />
             ) : (
-              <ul className="divide-y divide-slate-50">
+              <ul className="divide-y divide-slate-200/50">
                 {requests.map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
                     <div>
@@ -140,8 +140,8 @@ function NewRequest({ clients, onClose, onSaved }: { clients: Client[]; onClose:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-lg glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-display text-lg font-semibold">Log a shift request</h2>
         <p className="mt-1 text-xs text-slate-500">For requests that arrive by phone or email (portal requests appear automatically, 3.0).</p>
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -226,8 +226,8 @@ function AllocateDrawer({ request, onClose, onDone }: { request: ShiftRequest; o
   const blocked = workers.filter((w) => w.block_reason);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-brand-950/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-brand-950/35 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="glass-pop h-full w-full max-w-xl overflow-y-auto p-6 animate-slide-in-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
             <h2 className="font-display text-lg font-semibold">Allocate — {request.client_name}</h2>
@@ -264,7 +264,7 @@ function WorkerGroup({ title, workers, onOffer, onAllocate, muted }: {
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
       <ul className="space-y-2">
         {workers.map((w) => (
-          <li key={w.id} className={clsx('rounded-lg border px-3 py-2.5', muted ? 'border-slate-100 bg-slate-50/50' : 'border-slate-200')}>
+          <li key={w.id} className={clsx('rounded-lg border px-3 py-2.5', muted ? 'border-slate-200/60 bg-slate-900/[0.02]' : 'border-slate-200')}>
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-medium text-ink">
@@ -328,7 +328,7 @@ function AvailabilityBoard() {
         action={<input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />}
       />
       {loading ? <Spinner /> : (
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {[...replied, ...noReply].map((w) => (
             <li key={w.candidate_id} className="flex items-center justify-between px-5 py-2.5">
               <div>

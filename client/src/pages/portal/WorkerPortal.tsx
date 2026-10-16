@@ -4,7 +4,8 @@ import { CalendarDays, FileText, LayoutDashboard, User2, Download, PenLine } fro
 import { api } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
 import { Availability, Offer, OhRecord, ComplianceDoc } from '../../lib/types';
-import { Badge, Card, CardHeader, EmptyState, btnPrimary, btnGhost, inputCls, fmtStatus } from '../../components/ui';
+import { Badge, Card, CardHeader, EmptyState, PhotoUpload, btnPrimary, btnGhost, inputCls, fmtStatus } from '../../components/ui';
+import { useAuth } from '../../lib/auth';
 import { PortalShell } from './Portal';
 
 const PAGES = [
@@ -65,7 +66,7 @@ function MyShifts() {
       {!!pending.length && (
         <Card className="ring-1 ring-brand-200">
           <CardHeader title={`${pending.length} shift offer${pending.length > 1 ? 's' : ''} waiting`} subtitle="Accept or decline" />
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {pending.map((o) => (
               <li key={o.id} className="px-5 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -98,7 +99,7 @@ function MyShifts() {
         {!upcoming.length ? (
           <EmptyState icon={<CalendarDays className="h-5 w-5" />} title="Nothing booked" hint="New bookings appear here when the office allocates you." />
         ) : (
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {upcoming.map((s) => (
               <li key={s.id} className="px-5 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -136,7 +137,7 @@ function MyShifts() {
         {!unsigned.length ? (
           <p className="px-5 pb-4 text-xs text-slate-400">Nothing awaiting your signature.</p>
         ) : (
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-slate-200/50">
             {unsigned.map((s) => (
               <li key={s.id} className="flex items-center justify-between px-5 py-3">
                 <div>
@@ -154,7 +155,7 @@ function MyShifts() {
 
       <Card>
         <CardHeader title="Past shifts & site notes" subtitle="Notes recorded by the site signatory (6.10b)" />
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {shifts.filter((s) => s.status === 'completed').slice(0, 15).map((s) => (
             <li key={s.id} className="px-5 py-3 text-sm">
               <div className="flex items-center justify-between">
@@ -164,7 +165,7 @@ function MyShifts() {
                   {s.client_sig_at && <Badge value="approved" label="Client signed" />}
                 </div>
               </div>
-              {s.signatory_notes && <p className="mt-1 rounded bg-slate-50 px-2 py-1 text-xs text-slate-600">Site note: {s.signatory_notes}</p>}
+              {s.signatory_notes && <p className="mt-1 rounded bg-slate-900/[0.035] px-2 py-1 text-xs text-slate-600">Site note: {s.signatory_notes}</p>}
             </li>
           ))}
           {!shifts.filter((s) => s.status === 'completed').length && (
@@ -175,8 +176,8 @@ function MyShifts() {
 
       {/* sign modal */}
       {signing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/40 p-3 backdrop-blur-sm sm:items-center" onClick={() => setSigning(null)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setSigning(null)}>
+          <div className="w-full max-w-md glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">Sign timesheet</h2>
             <p className="mt-1 text-xs text-slate-500">
               {fmtDate(signing.shift_date)} — {signing.client_name}. Booked {signing.start_time.slice(0, 5)}–{signing.end_time.slice(0, 5)} ({signing.hours}h).
@@ -190,7 +191,7 @@ function MyShifts() {
               <label className="block"><span className="mb-1 block text-[10px] font-medium text-slate-500">Hours</span>
                 <input type="number" step="0.25" className={inputCls} value={signForm.actual_hours} onChange={(e) => setSignForm((f) => ({ ...f, actual_hours: e.target.value }))} /></label>
             </div>
-            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+            <p className="mt-4 rounded-lg bg-slate-900/[0.035] px-3 py-2 text-[11px] text-slate-500">
               By signing you confirm these hours are accurate. Your name is recorded as the signature.
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -239,7 +240,7 @@ function MyAvailability() {
       </Card>
       <Card>
         <CardHeader title="Your availability" subtitle="Upcoming dates the office can see" />
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {rows.map((r) => (
             <li key={r.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
               <span className="text-ink">{fmtDate(r.date)}</span>
@@ -271,7 +272,7 @@ function MyDocuments() {
     <div className="space-y-5">
       <Card>
         <CardHeader title="Your documents" subtitle="Everything on your compliance file (2.5)" />
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {docs.map((d) => (
             <li key={d.id} className="flex items-center justify-between px-5 py-3 text-sm">
               <div>
@@ -289,7 +290,7 @@ function MyDocuments() {
       </Card>
       <Card>
         <CardHeader title="Occupational health" subtitle="Only you and our compliance team can see this (2.9)" />
-        <ul className="divide-y divide-slate-50">
+        <ul className="divide-y divide-slate-200/50">
           {oh.map((o) => (
             <li key={o.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
               <span className="text-ink">{o.name} <span className="text-[11px] text-slate-400">({o.kind})</span></span>
@@ -315,9 +316,20 @@ function MyDetails() {
     a.click();
   };
   const p = me?.profile;
+  const { refresh } = useAuth();
   return (
     <Card>
       <CardHeader title="Your details" subtitle="What we hold about you" />
+      {p && (
+        <div className="flex items-center gap-4 border-b border-slate-200/60 px-5 py-4">
+          <PhotoUpload endpoint="/portal/me/photo" name={`${p.first_name} ${p.last_name}`} photoId={p.photo_file_id} size="lg"
+            onDone={() => { api.get('/portal/me').then(setMe); refresh(); }} />
+          <div>
+            <p className="text-sm font-medium text-ink">{p.first_name} {p.last_name}</p>
+            <p className="text-xs text-slate-500">Click your photo to change it — clients see this on your shared profile.</p>
+          </div>
+        </div>
+      )}
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-2">
         {p && [
           ['Name', `${p.first_name} ${p.last_name}`], ['Role', p.role], ['Email', p.email], ['Phone', p.phone],
@@ -327,7 +339,7 @@ function MyDetails() {
           <div key={k as string}><dt className="text-[11px] uppercase tracking-wide text-slate-400">{k}</dt><dd className="text-sm text-ink">{v ?? '—'}</dd></div>
         ))}
       </dl>
-      <div className="border-t border-slate-100 px-5 py-4">
+      <div className="border-t border-slate-200/60 px-5 py-4">
         <button className={btnGhost} onClick={exportData}>
           <Download className="h-4 w-4" /> Download a copy of all my data (8.6)
         </button>

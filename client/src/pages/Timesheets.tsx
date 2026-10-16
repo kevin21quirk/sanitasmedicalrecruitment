@@ -166,7 +166,7 @@ export default function Timesheets() {
       <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, sub }) => (
           <Card key={label} className="p-4">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
               <Icon className="h-4 w-4" />
             </span>
             <p className="mt-3 text-2xl font-bold tracking-tight text-ink">{value}</p>
@@ -192,7 +192,7 @@ export default function Timesheets() {
             {label}
             <span className={clsx(
               'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-              tab === key ? 'bg-brand-50 text-brand-600' : 'bg-slate-100 text-slate-500'
+              tab === key ? 'bg-brand-500/10 text-brand-600' : 'bg-slate-100 text-slate-500'
             )}>
               {counts[key] ?? 0}
             </span>
@@ -202,7 +202,7 @@ export default function Timesheets() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5">
+        <div className="mb-3 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-500/10 px-4 py-2.5">
           <span className="text-xs font-medium text-brand-700">{selected.size} selected</span>
           <button className={clsx(btnPrimary, 'px-2.5 py-1.5 text-xs')} disabled={busy} onClick={() => bulkUpdate('submitted', 'approved')}>
             Approve selected
@@ -221,7 +221,7 @@ export default function Timesheets() {
         <div className="scroll-thin overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-slate-200/60 text-[11px] uppercase tracking-wide text-slate-400">
                 <th className="w-10 px-5 py-3">
                   <input
                     type="checkbox"
@@ -240,11 +240,11 @@ export default function Timesheets() {
                 <th className="px-5 py-3 font-medium">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-200/50">
               {filtered.map((r) => {
                 const action = NEXT_ACTION[r.timesheet_status];
                 return (
-                  <tr key={r.id} className={clsx('hover:bg-slate-50/60', selected.has(r.id) && 'bg-brand-50/40')}>
+                  <tr key={r.id} className={clsx('hover:bg-white/40', selected.has(r.id) && 'bg-brand-500/10')}>
                     <td className="px-5 py-3">
                       <input
                         type="checkbox"
@@ -279,7 +279,7 @@ export default function Timesheets() {
                         <span className="flex gap-0.5" title="Signatures">
                           <span className={clsx('rounded px-1 text-[9px] font-semibold', r.worker_sig_at ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>W</span>
                           <span className={clsx('rounded px-1 text-[9px] font-semibold', r.client_sig_at ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>C</span>
-                          {r.timesheet_locked && <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold text-slate-500" title="Locked (6.5)">🔒</span>}
+                          {r.timesheet_locked && <span className="rounded bg-slate-900/5 px-1 text-[9px] font-semibold text-slate-500" title="Locked (6.5)">🔒</span>}
                         </span>
                         {action && (
                           <button className={actionBtn} onClick={() => patchStatus(r.id, action.next)}>

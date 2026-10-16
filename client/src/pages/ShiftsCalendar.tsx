@@ -193,10 +193,10 @@ export default function ShiftsCalendar() {
             const dayShifts = visible.filter((s) => isSameDay(parseISO(s.shift_date), day));
             const today = isSameDay(day, new Date());
             return (
-              <div key={day.toISOString()} className="flex min-h-56 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div key={day.toISOString()} className="flex min-h-56 flex-col glass rounded-2xl shadow-sm">
                 <div className={clsx(
                   'rounded-t-xl border-b px-3 py-2.5',
-                  today ? 'border-brand-200 bg-brand-500 text-white' : 'border-slate-100 bg-slate-50/60'
+                  today ? 'border-brand-200 bg-brand-500 text-white' : 'border-slate-200/60 bg-white/40'
                 )}>
                   <p className={clsx('text-[11px] font-semibold uppercase tracking-wide', today ? 'text-brand-100' : 'text-slate-400')}>
                     {format(day, 'EEE')}

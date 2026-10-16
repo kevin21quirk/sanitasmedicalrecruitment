@@ -50,7 +50,8 @@ export async function attachAccount(req, _res, next) {
               a.client_id, a.contact_id, a.email, a.is_active, a.must_reset,
               u.name AS staff_name, u.role AS staff_role, u.access_role, u.initials, u.color,
               c.first_name || ' ' || c.last_name AS worker_name,
-              cl.name AS client_name
+              cl.name AS client_name,
+              COALESCE(u.photo_file_id, c.photo_file_id, cl.logo_file_id) AS photo_file_id
        FROM sessions s
        JOIN accounts a ON a.id = s.account_id
        LEFT JOIN users u ON u.id = a.user_id
@@ -72,6 +73,7 @@ export async function attachAccount(req, _res, next) {
         name: row.staff_name || row.worker_name || row.client_name || row.email,
         initials: row.initials,
         color: row.color,
+        photoFileId: row.photo_file_id,
       };
       req.sessionToken = token;
     }

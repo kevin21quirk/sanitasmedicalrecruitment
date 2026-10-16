@@ -61,7 +61,7 @@ export default function Dashboard() {
           <Link key={label} to={to}>
             <Card className={clsx('group h-full p-4 transition-shadow hover:shadow-md', alert && 'ring-1 ring-red-200')}>
               <div className="flex items-center justify-between">
-                <span className={clsx('flex h-8 w-8 items-center justify-center rounded-lg', alert ? 'bg-red-50 text-red-500' : 'bg-brand-50 text-brand-600')}>
+                <span className={clsx('flex h-8 w-8 items-center justify-center rounded-lg', alert ? 'bg-red-50 text-red-500' : 'bg-brand-500/10 text-brand-600')}>
                   <Icon className="h-4 w-4" />
                 </span>
                 <ArrowUpRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-brand-500" />
@@ -112,7 +112,7 @@ export default function Dashboard() {
                   <span className="font-medium capitalize text-slate-600">{stage}</span>
                   <span className="font-semibold text-ink">{count}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-2 overflow-hidden rounded-full bg-slate-900/5">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-400 transition-all"
                     style={{ width: `${(count / maxPipe) * 100}%` }}
@@ -121,7 +121,7 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-          <div className="border-t border-slate-100 px-5 py-3">
+          <div className="border-t border-slate-200/60 px-5 py-3">
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.placementsByMonth} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
@@ -142,9 +142,9 @@ export default function Dashboard() {
             subtitle="Expired & expiring documents"
             action={<Link to="/compliance" className="text-xs font-medium text-brand-600 hover:text-brand-700">View all</Link>}
           />
-          <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+          <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
             {data.complianceAlerts.map((d) => (
-              <Link to={`/candidates/${d.candidate_id}`} key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50">
+              <Link to={`/candidates/${d.candidate_id}`} key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-brand-500/5">
                 <span className={clsx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', d.status === 'expired' ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500')}>
                   <AlertTriangle className="h-4 w-4" />
                 </span>
@@ -167,7 +167,7 @@ export default function Dashboard() {
         {/* Tasks due */}
         <Card>
           <CardHeader title="Tasks Due" subtitle="Across the team" />
-          <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+          <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
             {data.tasksDue.map((t) => (
               <div key={t.id} className="flex items-start gap-3 px-5 py-3">
                 {t.status === 'done'
@@ -205,7 +205,7 @@ export default function Dashboard() {
             subtitle="Booked and completed shifts"
             action={<Link to="/shifts" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"><CalendarDays className="h-3.5 w-3.5" /> Calendar</Link>}
           />
-          <div className="scroll-thin max-h-80 divide-y divide-slate-50 overflow-y-auto">
+          <div className="scroll-thin max-h-80 divide-y divide-slate-200/50 overflow-y-auto">
             {data.shiftsThisWeek.map((s, i) => (
               <div key={i} className="flex items-center gap-4 px-5 py-2.5">
                 <div className="w-20 shrink-0 text-xs font-medium text-slate-500">{fmtDate(s.shift_date)}</div>

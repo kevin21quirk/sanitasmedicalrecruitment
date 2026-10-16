@@ -3,8 +3,18 @@ import { query } from '../db.js';
 import { requirePortal } from '../lib/auth.js';
 import { audit } from '../lib/audit.js';
 import { notify } from '../lib/notify.js';
+import { upload, replacePhoto } from '../lib/files.js';
 
 const r = Router();
+
+// Worker uploads their own profile photo.
+r.post('/me/photo', requirePortal('worker'), upload.single('file'), async (req, res, next) => {
+  try {
+    const stored = await replacePhoto({ table: 'candidates', column: 'photo_file_id',
+      id: req.account.candidateId, file: req.file, uploadedBy: req.account.id });
+    res.status(201).json({ photo_file_id: stored.id });
+  } catch (e) { e.status ? res.status(e.status).json({ error: e.message }) : next(e); }
+});
 
 // ─── Worker portal ────────────────────────────────────────────────────────
 // Every route uses requirePortal('worker'); account.candidateId scopes data.
@@ -15,7 +25,7 @@ r.get('/me', requirePortal('worker', 'client', 'supervisor'), async (req, res, n
     if (acc.kind === 'worker') {
       const { rows } = await query(
         `SELECT id, first_name, last_name, email, phone, role, status, preferred_shift,
-                engagement_type, rtw_status, rtw_expiry, uniform_size, driving, created_at
+                engagement_type, rtw_status, rtw_expiry, uniform_size, driving, created_at, photo_file_id
          FROM candidates WHERE id = $1`, [acc.candidateId]);
       return res.json({ account: acc, profile: rows[0] });
     }

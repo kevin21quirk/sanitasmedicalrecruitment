@@ -267,6 +267,10 @@ ALTER TABLE candidates ADD COLUMN IF NOT EXISTS erased_at TIMESTAMPTZ;
 ALTER TABLE candidates ADD COLUMN IF NOT EXISTS payroll_ref TEXT;                -- payroll bureau reference
 ALTER TABLE candidates ADD COLUMN IF NOT EXISTS bank_details JSONB;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS billing_email TEXT;                 -- invoices go here
+-- Profile images / logos (files.owner_type = 'photo'; served inline via /api/files/:id/view)
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS photo_file_id INT REFERENCES files(id) ON DELETE SET NULL;
+ALTER TABLE users      ADD COLUMN IF NOT EXISTS photo_file_id INT REFERENCES files(id) ON DELETE SET NULL;
+ALTER TABLE clients    ADD COLUMN IF NOT EXISTS logo_file_id  INT REFERENCES files(id) ON DELETE SET NULL;
 
 -- Client record additions
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS standing_instructions TEXT;         -- 4.4

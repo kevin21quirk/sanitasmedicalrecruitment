@@ -115,7 +115,7 @@ export default function Compliance() {
     { label: 'Valid', value: +summary.valid, icon: ShieldCheck, cls: 'bg-emerald-50 text-emerald-600', sub: 'in date' },
     { label: 'Expiring', value: +summary.expiring, icon: Clock3, cls: 'bg-amber-50 text-amber-600', sub: 'within 60 days' },
     { label: 'Expired', value: +summary.expired, icon: ShieldAlert, cls: 'bg-red-50 text-red-500', sub: 'needs renewal' },
-    { label: 'Pending', value: +summary.pending, icon: FileClock, cls: 'bg-brand-50 text-brand-600', sub: 'awaiting verification' },
+    { label: 'Pending', value: +summary.pending, icon: FileClock, cls: 'bg-brand-500/10 text-brand-600', sub: 'awaiting verification' },
     { label: 'Missing', value: +summary.missing, icon: FileQuestion, cls: 'bg-slate-100 text-slate-500', sub: 'not on file' },
   ];
 
@@ -137,7 +137,7 @@ export default function Compliance() {
         onChange={(e) => { const f = e.target.files?.[0]; if (f) importTraining(f); e.target.value = ''; }}
       />
       {notice && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-medium text-brand-700">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-500/10 px-4 py-2.5 text-xs font-medium text-brand-700">
           {notice}
           <button onClick={() => setNotice('')} className="text-brand-500 hover:text-brand-700">Dismiss</button>
         </div>
@@ -180,7 +180,7 @@ export default function Compliance() {
             return (
               <div key={t.type} className="flex items-center gap-4">
                 <p className="w-44 shrink-0 truncate text-xs font-medium text-slate-600" title={t.type}>{t.type}</p>
-                <div className="flex h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <div className="flex h-3 flex-1 overflow-hidden rounded-full bg-slate-900/5">
                   {SEGMENTS.map((s) =>
                     counts[s.key] > 0 && (
                       <div
@@ -197,7 +197,7 @@ export default function Compliance() {
             );
           })}
           {!data.byType.length && <p className="py-4 text-center text-sm text-slate-400">No documents recorded</p>}
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate-200/60 pt-3">
             {SEGMENTS.map((s) => (
               <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <span className={clsx('h-2 w-2 rounded-sm', s.dot)} />
@@ -225,7 +225,7 @@ export default function Compliance() {
             </div>
           }
         />
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3">
+        <div className="flex flex-wrap gap-2 border-b border-slate-200/60 px-5 py-3">
           {FILTERS.map((f) => {
             const count = f.key === 'all'
               ? data.attention.length
@@ -239,7 +239,7 @@ export default function Compliance() {
                   'rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition-colors',
                   active
                     ? 'bg-brand-500 text-white ring-brand-500'
-                    : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
+                    : 'bg-white text-slate-600 ring-slate-200 hover:bg-brand-500/5'
                 )}
               >
                 {f.label} · {count}
@@ -252,7 +252,7 @@ export default function Compliance() {
           <div className="scroll-thin overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-slate-200/60 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
                   <th className="px-5 py-3">Candidate</th>
                   <th className="px-3 py-3">Document</th>
                   <th className="px-3 py-3">Reference</th>
@@ -262,9 +262,9 @@ export default function Compliance() {
                   <th className="px-5 py-3 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-200/50">
                 {rows.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50/60">
+                  <tr key={d.id} className="hover:bg-white/40">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={d.candidate_name} size="sm" />
@@ -291,7 +291,7 @@ export default function Compliance() {
                         <button
                           disabled={busyId === d.id}
                           onClick={() => act(d, 'valid', true)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-600 hover:bg-brand-500/10 disabled:opacity-50"
                         >
                           <Check className="h-3.5 w-3.5" />
                           {busyId === d.id ? 'Saving…' : 'Verify'}
@@ -301,7 +301,7 @@ export default function Compliance() {
                         <button
                           disabled={busyId === d.id}
                           onClick={() => act(d, 'pending')}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-brand-500/5 disabled:opacity-50"
                         >
                           <FileClock className="h-3.5 w-3.5" />
                           {busyId === d.id ? 'Saving…' : 'Mark requested'}
@@ -311,7 +311,7 @@ export default function Compliance() {
                         <button
                           disabled={busyId === d.id}
                           onClick={() => act(d, 'pending')}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-brand-500/5 disabled:opacity-50"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           {busyId === d.id ? 'Saving…' : 'Re-request'}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, typ
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Building2, MapPin, Phone, Mail, Globe, BedDouble, Receipt,
-  Pencil, Star, Plus, Users, KanbanSquare, Briefcase, CalendarDays,
+  Pencil, Star, Plus, Users, KanbanSquare, Briefcase, CalendarDays, Camera,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
@@ -13,7 +13,7 @@ import {
   Placement, Shift, User, Vacancy,
 } from '../lib/types';
 import {
-  Badge, Card, CardHeader, Avatar, Spinner, EmptyState, Modal,
+  Badge, Card, CardHeader, Avatar, Spinner, EmptyState, Modal, PhotoUpload,
   inputCls, btnPrimary, btnGhost, fmtStatus,
 } from '../components/ui';
 import { ActivityFeed } from '../components/ActivityFeed';
@@ -36,7 +36,7 @@ const CQC_RATINGS = ['Outstanding', 'Good', 'Requires Improvement', 'Inadequate'
 
 const CQC_STYLES: Record<string, string> = {
   Outstanding: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  Good: 'bg-brand-50 text-brand-700 ring-brand-600/20',
+  Good: 'bg-brand-500/10 text-brand-700 ring-brand-600/20',
   'Requires Improvement': 'bg-amber-50 text-amber-700 ring-amber-600/20',
   Inadequate: 'bg-red-50 text-red-700 ring-red-600/20',
 };
@@ -68,7 +68,7 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 function TableHead({ cols }: { cols: string[] }) {
   return (
     <thead>
-      <tr className="border-b border-slate-100 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
+      <tr className="border-b border-slate-200/60 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
         {cols.map((c) => <th key={c} className={thCls}>{c}</th>)}
       </tr>
     </thead>
@@ -287,9 +287,20 @@ export default function ClientDetail() {
       <Card className="mb-5 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-              <Building2 className="h-6 w-6" />
-            </span>
+            {data.logo_file_id ? (
+              <PhotoUpload endpoint={`/clients/${id}/logo`} name={data.name} photoId={data.logo_file_id} size="lg" square onDone={load} />
+            ) : (
+              <label className="photo-upload flex h-14 w-14 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-brand-500/10 text-brand-600" title="Upload logo">
+                <Building2 className="h-6 w-6" />
+                <span className="photo-overlay rounded-xl"><Camera className="h-5 w-5" /></span>
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                  const f = e.target.files?.[0]; if (!f) return;
+                  const form = new FormData(); form.append('file', f);
+                  await api.upload(`/clients/${id}/logo`, form).catch((err) => alert(err.message));
+                  load();
+                }} />
+              </label>
+            )}
             <div>
               <h1 className="font-display text-xl font-bold text-ink">{data.name}</h1>
               {data.group_name && <p className="mt-0.5 text-xs text-slate-500">Part of {data.group_name}</p>}
@@ -305,7 +316,7 @@ export default function ClientDetail() {
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-xs text-slate-600">
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200/60 pt-4 text-xs text-slate-600">
           {address && (
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 text-slate-400" />{address}
@@ -390,10 +401,10 @@ export default function ClientDetail() {
           <div className="space-y-5">
             <Card>
               <CardHeader title="At a glance" />
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-slate-200/50">
                 {stats.map(({ label, value, icon: Icon }) => (
                   <div key={label} className="flex items-center gap-3 px-5 py-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div>
@@ -430,9 +441,9 @@ export default function ClientDetail() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <TableHead cols={['Name', 'Role', 'Email', 'Phone', 'Primary', 'Timesheet signatory']} />
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-200/50">
                   {data.contacts.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
+                    <tr key={c.id} className="hover:bg-brand-500/5">
                       <td className={clsx(tdCls, 'font-medium text-ink')}>{c.name}</td>
                       <td className={clsx(tdCls, 'text-slate-600')}>{c.role ?? '—'}</td>
                       <td className={clsx(tdCls, 'text-slate-600')}>{c.email ?? '—'}</td>
@@ -473,9 +484,9 @@ export default function ClientDetail() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <TableHead cols={['Title', 'Role', 'Shift Pattern', 'Pay', 'Charge', 'Stage', 'Priority', 'Submissions']} />
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-200/50">
                   {data.vacancies.map((v) => (
-                    <tr key={v.id} className="hover:bg-slate-50">
+                    <tr key={v.id} className="hover:bg-brand-500/5">
                       <td className={tdCls}>
                         <Link to={`/vacancies/${v.id}`} className="font-medium text-brand-600 hover:underline">
                           {v.title}
@@ -508,9 +519,9 @@ export default function ClientDetail() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <TableHead cols={['Candidate', 'Role', 'Stage', 'Start Date', 'Pay', 'Charge']} />
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-200/50">
                   {data.placements.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
+                    <tr key={p.id} className="hover:bg-brand-500/5">
                       <td className={tdCls}>
                         <Link to={`/candidates/${p.candidate_id}`} className="font-medium text-brand-600 hover:underline">
                           {p.candidate_name ?? `Candidate #${p.candidate_id}`}
@@ -540,9 +551,9 @@ export default function ClientDetail() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <TableHead cols={['Date', 'Candidate', 'Type', 'Hours', 'Status', 'Timesheet']} />
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-200/50">
                   {data.shifts.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50">
+                    <tr key={s.id} className="hover:bg-brand-500/5">
                       <td className={clsx(tdCls, 'font-medium text-ink')}>{fmtDate(s.shift_date)}</td>
                       <td className={clsx(tdCls, 'text-slate-600')}>{s.candidate_name ?? '—'}</td>
                       <td className={tdCls}><Badge value={s.shift_type} /></td>
@@ -569,7 +580,7 @@ export default function ClientDetail() {
               subtitle="Baseline requirements apply everywhere; additions here block non-compliant bookings (2.3/2.4)"
             />
             <div className="px-5 py-4">
-              <ul className="divide-y divide-slate-50">
+              <ul className="divide-y divide-slate-200/50">
                 {(data.requirements ?? []).filter((r) => r.required).map((r) => (
                   <li key={r.id} className="flex items-center justify-between py-2.5 text-sm">
                     <span className="font-medium text-ink">{r.doc_type}</span>
@@ -582,7 +593,7 @@ export default function ClientDetail() {
                   <li className="py-2 text-xs text-slate-400">Baseline requirements only — no site-specific additions.</li>
                 )}
               </ul>
-              <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+              <div className="mt-3 flex gap-2 border-t border-slate-200/60 pt-3">
                 <input
                   className={inputCls}
                   placeholder="e.g. PMVA, First Aid, Moving & Handling"
@@ -608,7 +619,7 @@ export default function ClientDetail() {
               subtitle="People this site cares for — enables one-to-one continuity tracking (3.7)"
             />
             <div className="px-5 py-4">
-              <ul className="divide-y divide-slate-50">
+              <ul className="divide-y divide-slate-200/50">
                 {(data.individuals ?? []).map((i) => (
                   <li key={i.id} className="flex items-center justify-between py-2.5 text-sm">
                     <span className={clsx('font-medium', i.is_active ? 'text-ink' : 'text-slate-400 line-through')}>{i.name}</span>
@@ -622,7 +633,7 @@ export default function ClientDetail() {
                 ))}
                 {!data.individuals?.length && <li className="py-2 text-xs text-slate-400">No individuals recorded.</li>}
               </ul>
-              <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+              <div className="mt-3 flex gap-2 border-t border-slate-200/60 pt-3">
                 <input
                   className={inputCls}
                   placeholder="e.g. Mrs J Smith"

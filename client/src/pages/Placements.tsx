@@ -150,7 +150,7 @@ export default function Placements() {
         {statCards.map(({ label, value, icon: Icon, sub }) => (
           <Card key={label} className="p-4">
             <div className="flex items-center justify-between">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
                 <Icon className="h-4 w-4" />
               </span>
             </div>
@@ -192,7 +192,7 @@ export default function Placements() {
         <div className="scroll-thin overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-slate-200/60 text-[11px] uppercase tracking-wide text-slate-400">
                 <th className="px-5 py-3 font-medium">Candidate</th>
                 <th className="px-4 py-3 font-medium">Vacancy / Client</th>
                 <th className="px-4 py-3 font-medium">Stage</th>
@@ -202,13 +202,13 @@ export default function Placements() {
                 <th className="px-5 py-3 font-medium">Owner</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-200/50">
               {rows.map((p) => {
                 const margin = p.pay_rate != null && p.charge_rate != null
                   ? Number(p.charge_rate) - Number(p.pay_rate)
                   : null;
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50/60">
+                  <tr key={p.id} className="hover:bg-white/40">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar name={p.candidate_name} size="sm" />

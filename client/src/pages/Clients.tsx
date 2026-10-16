@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  Search, Plus, Building2, MapPin, BedDouble, Users, KanbanSquare, Briefcase,
+  Search, Plus, Building2, MapPin, BedDouble, Users, KanbanSquare, Briefcase, LayoutGrid, List,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
 import { Client, User } from '../lib/types';
 import {
-  Badge, Card, Avatar, Spinner, EmptyState, Modal, PageHeader,
+  Badge, Card, Avatar, Spinner, EmptyState, Modal, PageHeader, FilterTh, SortTh, Pagination, useLocalGrid,
   inputCls, btnPrimary, btnGhost, fmtStatus,
 } from '../components/ui';
 
@@ -17,7 +17,7 @@ const STATUSES = ['active', 'prospect', 'inactive'];
 
 const CQC_STYLES: Record<string, string> = {
   Outstanding: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  Good: 'bg-brand-50 text-brand-700 ring-brand-600/20',
+  Good: 'bg-brand-500/10 text-brand-700 ring-brand-600/20',
   'Requires Improvement': 'bg-amber-50 text-amber-700 ring-amber-600/20',
   Inadequate: 'bg-red-50 text-red-700 ring-red-600/20',
 };
@@ -54,6 +54,11 @@ const EMPTY_FORM: ClientForm = {
 };
 
 export default function Clients() {
+  const navigate = useNavigate();
+  const [view, setView] = useState<'grid' | 'cards'>('grid');
+  const [townFilter, setTownFilter] = useState('');
+  const [sort, setSort] = useState<'name' | 'town' | 'beds' | 'active_workers'>('name');
+  const [dir, setDir] = useState<'asc' | 'desc'>('asc');
   const [clients, setClients] = useState<Client[] | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [searchInput, setSearchInput] = useState('');
@@ -116,41 +121,107 @@ export default function Clients() {
     }
   };
 
+  const filtered = (clients ?? [])
+    .filter((c) => !townFilter || (c.town ?? '').toLowerCase().includes(townFilter.toLowerCase()))
+    .sort((a, b) => {
+      const av = a[sort] ?? '', bv = b[sort] ?? '';
+      const cmp = typeof av === 'number' || !isNaN(+av) && !isNaN(+bv) && av !== '' && bv !== ''
+        ? +av - +bv : String(av).localeCompare(String(bv));
+      return dir === 'asc' ? cmp : -cmp;
+    });
+  const grid = useLocalGrid(filtered, { pageSize: 10 });
+  const toggleSort = (col: string) => {
+    const c = col as typeof sort;
+    if (sort === c) setDir((d) => (d === 'asc' ? 'desc' : 'asc')); else { setSort(c); setDir('asc'); }
+  };
+
   return (
     <div>
-      <PageHeader title="Care Homes" subtitle="Client organisations and referral partners">
+      <PageHeader eyebrow="Recruitment" title="Care Homes" subtitle="Client organisations and referral partners">
+        <div className="hidden items-center gap-0.5 rounded-xl bg-slate-900/5 p-1 sm:flex">
+          <button onClick={() => setView('grid')} className={clsx('rounded-lg p-1.5', view === 'grid' ? 'bg-white text-ink shadow-sm' : 'text-slate-500')} title="Grid"><List className="h-4 w-4" /></button>
+          <button onClick={() => setView('cards')} className={clsx('rounded-lg p-1.5', view === 'cards' ? 'bg-white text-ink shadow-sm' : 'text-slate-500')} title="Cards"><LayoutGrid className="h-4 w-4" /></button>
+        </div>
         <button className={btnPrimary} onClick={() => setModalOpen(true)}>
           <Plus className="h-4 w-4" /> Add Client
         </button>
       </PageHeader>
 
-      {/* Filters */}
-      <Card className="mb-5 flex flex-wrap items-center gap-3 p-3">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            className={clsx(inputCls, 'pl-9')}
-            placeholder="Search care homes…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
-        </div>
-        <select className={clsx(inputCls, 'w-auto')} value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">All types</option>
-          {CLIENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select className={clsx(inputCls, 'w-auto')} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
-        </select>
-        <select className={clsx(inputCls, 'w-auto')} value={cqc} onChange={(e) => setCqc(e.target.value)}>
-          <option value="">All CQC ratings</option>
-          {CQC_RATINGS.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </Card>
-
-      {/* Grid */}
-      {!clients ? (
+      {view === 'grid' ? (
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-200/60 px-4 py-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input className={clsx(inputCls, 'pl-9')} placeholder="Search care homes…" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+            </div>
+            <select className={clsx(inputCls, 'w-auto')} value={cqc} onChange={(e) => setCqc(e.target.value)}>
+              <option value="">All CQC ratings</option>
+              {CQC_RATINGS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <span className="text-xs text-slate-400">{filtered.length} result{filtered.length === 1 ? '' : 's'}</span>
+          </div>
+          {!clients ? <Spinner label="Loading care homes…" /> : (
+            <div className="scroll-thin overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="grid-head">
+                  <tr className="border-b border-slate-200/60">
+                    <SortTh label="Care home" col="name" sort={sort} dir={dir} onSort={toggleSort} className="min-w-60" />
+                    <SortTh label="Type" />
+                    <SortTh label="Location" col="town" sort={sort} dir={dir} onSort={toggleSort} />
+                    <SortTh label="CQC" />
+                    <SortTh label="Beds" col="beds" sort={sort} dir={dir} onSort={toggleSort} />
+                    <SortTh label="Contacts" />
+                    <SortTh label="Vacancies" />
+                    <SortTh label="Workers" col="active_workers" sort={sort} dir={dir} onSort={toggleSort} />
+                    <SortTh label="Account manager" />
+                    <SortTh label="Status" />
+                  </tr>
+                  <tr className="border-b border-slate-200/60">
+                    <FilterTh value={searchInput} onChange={setSearchInput} placeholder="Search name…" />
+                    <FilterTh value={type} onChange={setType} options={CLIENT_TYPES.map((t) => ({ value: t, label: t }))} />
+                    <FilterTh value={townFilter} onChange={setTownFilter} placeholder="Town…" />
+                    <th /><th /><th /><th /><th /><th />
+                    <FilterTh value={status} onChange={setStatus} options={STATUSES.map((s) => ({ value: s, label: fmtStatus(s) }))} />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/50">
+                  {grid.slice.map((c) => (
+                    <tr key={c.id} className="grid-row cursor-pointer" onClick={() => navigate(`/clients/${c.id}`)}>
+                      <td className="px-4 py-2.5">
+                        <Link to={`/clients/${c.id}`} className="group flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                          {c.logo_file_id
+                            ? <Avatar name={c.name} photoId={c.logo_file_id} size="sm" square />
+                            : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600"><Building2 className="h-4 w-4" /></span>}
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-ink group-hover:text-brand-600">{c.name}</p>
+                            {c.group_name && <p className="truncate text-[11px] text-slate-400">{c.group_name}</p>}
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{c.type}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{[c.town, c.postcode].filter(Boolean).join(', ') || '—'}</td>
+                      <td className="px-4 py-2.5">{c.cqc_rating ? <CqcChip rating={c.cqc_rating} /> : <span className="text-xs text-slate-400">—</span>}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{c.beds ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{c.contact_count ?? 0}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{c.open_vacancies ?? 0}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{c.active_workers ?? 0}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="flex items-center gap-2">
+                          <Avatar initials={c.am_initials} color={c.am_color} name={c.am_name} size="xs" />
+                          <span className="truncate text-xs text-slate-600">{c.am_name ?? 'Unassigned'}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5"><Badge value={c.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filtered.length && <EmptyState icon={<Building2 className="h-5 w-5" />} title="No care homes found" hint="Try adjusting the filters or add a new client." />}
+            </div>
+          )}
+          {clients && <Pagination page={grid.page} pages={grid.pages} total={grid.total} limit={grid.limit} onPage={grid.setPage} onLimit={grid.setLimit} label="care homes" />}
+        </Card>
+      ) : !clients ? (
         <Spinner label="Loading care homes…" />
       ) : clients.length === 0 ? (
         <Card>
@@ -186,7 +257,7 @@ export default function Clients() {
                 </p>
 
                 <div className="mt-auto">
-                  <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  <div className="mt-4 flex items-center gap-4 border-t border-slate-200/60 pt-3 text-xs text-slate-500">
                     <span className="flex items-center gap-1" title="Beds">
                       <BedDouble className="h-3.5 w-3.5 text-slate-400" />{c.beds ?? '—'}
                     </span>

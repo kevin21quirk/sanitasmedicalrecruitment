@@ -5,6 +5,7 @@ export interface User {
   role: string;
   initials: string;
   color: string;
+  photo_file_id?: number | null;
 }
 
 export interface Candidate {
@@ -44,6 +45,8 @@ export interface Candidate {
   owner_name?: string;
   owner_initials?: string;
   owner_color?: string;
+  owner_photo_file_id?: number | null;
+  photo_file_id?: number | null;
   notes: string | null;
   registered_at: string;
   last_worked_at: string | null;
@@ -233,6 +236,7 @@ export interface Client {
   am_name?: string;
   am_initials?: string;
   am_color?: string;
+  logo_file_id?: number | null;
   notes: string | null;
   standing_instructions: string | null;
   share_profile_fields: Record<string, boolean> | null;

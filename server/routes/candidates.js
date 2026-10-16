@@ -2,10 +2,20 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { canSeeOH } from '../lib/auth.js';
-import { upload, storeFile } from '../lib/files.js';
+import { upload, storeFile, replacePhoto } from '../lib/files.js';
 import { workerComplianceFor, docHealth } from '../lib/compliance.js';
 
 const r = Router();
+
+// Profile photo upload (multipart field "file", images only).
+r.post('/:id/photo', upload.single('file'), async (req, res, next) => {
+  try {
+    const stored = await replacePhoto({ table: 'candidates', column: 'photo_file_id', id: +req.params.id,
+      file: req.file, uploadedBy: req.account?.id });
+    await audit(req, 'candidate.photo_updated', 'candidate', +req.params.id);
+    res.status(201).json({ photo_file_id: stored.id });
+  } catch (e) { e.status ? res.status(e.status).json({ error: e.message }) : next(e); }
+});
 
 // List with search/filter/pagination
 r.get('/', async (req, res, next) => {
@@ -30,7 +40,7 @@ r.get('/', async (req, res, next) => {
     params.push(limit, (page - 1) * limit);
     const [rows, count] = await Promise.all([
       query(
-        `SELECT c.*, u.name AS owner_name, u.initials AS owner_initials, u.color AS owner_color,
+        `SELECT c.*, u.name AS owner_name, u.initials AS owner_initials, u.color AS owner_color, u.photo_file_id AS owner_photo_file_id,
           (SELECT COUNT(*) FROM compliance_documents d WHERE d.candidate_id = c.id AND d.status IN ('expired','missing')) AS docs_attention
          FROM candidates c LEFT JOIN users u ON u.id = c.owner_id
          ${whereSql}
