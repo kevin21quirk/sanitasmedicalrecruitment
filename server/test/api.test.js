@@ -152,8 +152,13 @@ before(async () => {
     `INSERT INTO accounts (kind, client_id, email, password_hash) VALUES ('client',$1,$2,$3) RETURNING id`,
     [fx.clientA, 'test-clienta@example.invalid', pw]);
   fx.accounts.push(ca[0].id);
+  const { rows: sa } = await query(
+    `INSERT INTO accounts (kind, client_id, email, password_hash) VALUES ('supervisor',$1,$2,$3) RETURNING id`,
+    [fx.clientA, 'test-supva@example.invalid', pw]);
+  fx.accounts.push(sa[0].id);
   cookies.worker = await login('test-workerpaye@example.invalid', 'portal123');
   cookies.client = await login('test-clienta@example.invalid', 'portal123');
+  cookies.supervisor = await login('test-supva@example.invalid', 'portal123');
 });
 
 after(async () => {
@@ -447,6 +452,65 @@ test('15b: POST /shifts/:id/notify composes and logs a WhatsApp message', async 
   assert.ok(body.includes('Bring photo ID.'), 'staff note appended');
   assert.ok(body.includes('Reply with a number'), 'numbered reply options included');
   assert.ok(!body.includes('14.50') && !body.includes('20.00'), 'no rates leaked');
+});
+
+// ── 17. Supervisors see site requests and can allocate a compliant worker ────
+test('17: supervisor sees the client request, allocates without rates, worker notified', async () => {
+  const date = nextDay(5); // Friday — TEST WorkerPaye has no other shift this day
+  const made = await api('/portal/client/requests', { method: 'POST', cookie: cookies.client, body: {
+    date, shift_type: 'day', start_time: '07:30', end_time: '20:00', role: 'Healthcare Assistant', qty: 1 } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  fx.requests.push(made.body.id);
+
+  // visible to the site supervisor
+  const list = await api('/portal/client/requests', { cookie: cookies.supervisor });
+  assert.equal(list.status, 200);
+  assert.ok(list.body.some((rq) => rq.id === made.body.id), 'supervisor sees the new request');
+  // workers cannot reach it; supervisors cannot create requests (client-only)
+  assert.equal((await api('/portal/client/requests', { cookie: cookies.worker })).status, 401);
+  const supCreate = await api('/portal/client/requests', { method: 'POST', cookie: cookies.supervisor, body: { date, shift_type: 'day' } });
+  assert.ok([401, 403].includes(supCreate.status));
+
+  // eligibility is advisory: compliant flags + gap reasons, no pay/charge fields
+  const noDocs = await addCandidate('WorkerNoDocs', { docs: null });
+  const elig = await api(`/portal/client/requests/${made.body.id}/eligible`, { cookie: cookies.supervisor });
+  assert.equal(elig.status, 200, JSON.stringify(elig.body));
+  const okRow = elig.body.workers.find((w) => w.id === fx.candOk);
+  assert.equal(okRow.compliant, true);
+  const badRow = elig.body.workers.find((w) => w.id === noDocs);
+  assert.equal(badRow.compliant, false);
+  assert.ok(badRow.compliance_gaps.length > 0, 'undocumented worker carries gap reasons');
+  assert.ok(!elig.body.workers.some((w) => 'pay_rate' in w || 'charge_rate' in w), 'no rates exposed');
+
+  // non-compliant worker refused with structured gaps
+  const badAlloc = await api(`/portal/client/requests/${made.body.id}/allocate`, {
+    method: 'POST', cookie: cookies.supervisor, body: { candidate_id: noDocs } });
+  assert.equal(badAlloc.status, 422);
+  assert.ok(badAlloc.body.gaps.some((g) => g.type === 'DBS Enhanced' && g.problem === 'missing'));
+
+  // compliant worker allocated: shift created, no rates, request fills, worker notified
+  const alloc = await api(`/portal/client/requests/${made.body.id}/allocate`, {
+    method: 'POST', cookie: cookies.supervisor, body: { candidate_id: fx.candOk } });
+  assert.equal(alloc.status, 201, JSON.stringify(alloc.body));
+  fx.shifts.push(alloc.body.id);
+  assert.equal(alloc.body.pay_rate, null, 'supervisor booking carries no pay rate');
+  assert.equal(alloc.body.charge_rate, null, 'supervisor booking carries no charge rate');
+  const { rows: rq } = await query(`SELECT status FROM shift_requests WHERE id = $1`, [made.body.id]);
+  assert.equal(rq[0].status, 'filled');
+  const { rows: inbox } = await query(
+    `SELECT id FROM messages WHERE entity_type = 'shift' AND entity_id = $1 AND channel = 'inapp'`, [alloc.body.id]);
+  assert.equal(inbox.length, 1, 'worker got an in-app notification');
+
+  // second allocation refused (filled); request for another site invisible
+  const again = await api(`/portal/client/requests/${made.body.id}/allocate`, {
+    method: 'POST', cookie: cookies.supervisor, body: { candidate_id: fx.candOk } });
+  assert.equal(again.status, 409);
+  const { rows: other } = await query(
+    `INSERT INTO shift_requests (client_id, date, shift_type, status) VALUES ($1,$2,'night','pending') RETURNING id`,
+    [fx.clientB, date]);
+  fx.requests.push(other[0].id);
+  const scoped = await api(`/portal/client/requests/${other[0].id}/eligible`, { cookie: cookies.supervisor });
+  assert.equal(scoped.status, 404, 'request at another site is not reachable');
 });
 
 // ── 16. Existing features still respond ─────────────────────────────────────

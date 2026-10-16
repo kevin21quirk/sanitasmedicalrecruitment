@@ -4,6 +4,8 @@ import { requirePortal } from '../lib/auth.js';
 import { audit } from '../lib/audit.js';
 import { notify } from '../lib/notify.js';
 import { upload, replacePhoto } from '../lib/files.js';
+import { workerComplianceFor } from '../lib/compliance.js';
+import { isoDate } from '../lib/dates.js';
 
 const r = Router();
 
@@ -270,6 +272,107 @@ r.post('/client/requests/:id/cancel', requirePortal('client'), async (req, res, 
       [req.body?.reason || null, req.params.id, req.account.clientId]);
     if (!rows[0]) return res.status(404).json({ error: 'Request not found or already filled' });
     res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// Supervisor allocation: which workers could cover a pending request at their
+// site. Same context the office sees, minus contact details and rates (least
+// privilege — 5.x supervisors coordinate on-site, the office owns contact).
+r.get('/client/requests/:id/eligible', requirePortal('supervisor'), async (req, res, next) => {
+  try {
+    const { rows: reqs } = await query(`SELECT * FROM shift_requests WHERE id = $1`, [req.params.id]);
+    const request = reqs[0];
+    if (!request || request.client_id !== req.account.clientId) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    const { rows: workers } = await query(
+      `SELECT c.id, c.first_name || ' ' || c.last_name AS name, c.role,
+              a.shift_type AS avail_type, a.status AS avail_status,
+              (SELECT COUNT(*) FROM shifts s WHERE s.candidate_id = c.id AND s.client_id = $1 AND s.status = 'completed') AS worked_at_client,
+              (SELECT COUNT(*) FROM shifts s WHERE s.candidate_id = c.id AND s.individual_id = $2::int AND s.status = 'completed') AS worked_with_individual,
+              (SELECT b.reason FROM candidate_blocks b WHERE b.candidate_id = c.id
+                AND (b.client_id = $1 OR (b.individual_id IS NOT NULL AND b.individual_id = $2::int)) LIMIT 1) AS block_reason
+       FROM candidates c
+       LEFT JOIN availability a ON a.candidate_id = c.id AND a.date = $3::date
+         AND (a.shift_type = 'any' OR a.shift_type = $4::text)
+       WHERE c.erased_at IS NULL AND c.status != 'do_not_use' AND c.suspended = FALSE
+       ORDER BY c.last_name`,
+      [request.client_id, request.individual_id, request.date, request.shift_type]);
+    const annotated = [];
+    for (const w of workers) {
+      const comp = await workerComplianceFor(w.id, request.client_id);
+      annotated.push({ ...w, compliant: comp.ok, compliance_gaps: comp.gaps });
+    }
+    res.json({ request, workers: annotated });
+  } catch (e) { next(e); }
+});
+
+// Supervisor allocates a worker to a pending request at their site.
+// Compliance + do-not-offer checks are identical to office allocation; pay and
+// charge rates are never set or exposed here — the office prices the shift.
+r.post('/client/requests/:id/allocate', requirePortal('supervisor'), async (req, res, next) => {
+  try {
+    const { candidate_id } = req.body || {};
+    if (!candidate_id) return res.status(400).json({ error: 'candidate_id required' });
+    const { rows: reqs } = await query(`SELECT * FROM shift_requests WHERE id = $1`, [req.params.id]);
+    const request = reqs[0];
+    if (!request || request.client_id !== req.account.clientId) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    if (request.status === 'cancelled') return res.status(409).json({ error: 'Request is cancelled' });
+    const { rows: filled } = await query(
+      `SELECT COUNT(*) AS n FROM shifts WHERE request_id = $1 AND status != 'cancelled'`, [request.id]);
+    if (+filled[0].n >= (request.qty || 1)) {
+      return res.status(409).json({ error: 'Request is already filled' });
+    }
+    const { rows: blk } = await query(
+      `SELECT reason FROM candidate_blocks WHERE candidate_id = $1 AND (client_id = $2 OR individual_id = $3::int)`,
+      [candidate_id, request.client_id, request.individual_id]);
+    if (blk.length) {
+      return res.status(422).json({ error: `Worker is marked do-not-offer for this site${blk[0].reason ? `: ${blk[0].reason}` : ''}` });
+    }
+    const comp = await workerComplianceFor(candidate_id, request.client_id);
+    if (!comp.ok) return res.status(422).json({ error: 'Worker is not compliant for this site', gaps: comp.gaps });
+    const { rows: conflicts } = await query(
+      `SELECT s.id, s.shift_date, s.start_time, s.end_time, cl.name AS client_name
+       FROM shifts s JOIN clients cl ON cl.id = s.client_id
+       WHERE s.candidate_id = $1 AND s.shift_date = $2 AND s.status IN ('booked','completed')`,
+      [candidate_id, request.date]);
+    if (conflicts.length) {
+      return res.status(409).json({ error: 'Worker is already booked on this date', conflicts });
+    }
+
+    const { rows } = await query(
+      `INSERT INTO shifts (request_id, candidate_id, client_id, shift_date, start_time, end_time, hours, shift_type,
+         individual_id, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booked') RETURNING *`,
+      [request.id, candidate_id, request.client_id, request.date,
+       request.start_time || '07:30', request.end_time || '20:00', request.hours || 12,
+       request.shift_type, request.individual_id]);
+    const { rows: nowFilled } = await query(
+      `SELECT COUNT(*) AS n FROM shifts WHERE request_id = $1 AND status != 'cancelled'`, [request.id]);
+    if (+nowFilled[0].n >= (request.qty || 1)) {
+      await query(`UPDATE shift_requests SET status = 'filled', filled_at = COALESCE(filled_at, now()), updated_at = now() WHERE id = $1`, [request.id]);
+    }
+
+    // tell the worker via in-app inbox (they may have no WhatsApp flow from a supervisor)
+    const { rows: wa } = await query(
+      `SELECT id FROM accounts WHERE candidate_id = $1 AND kind = 'worker' AND is_active`, [candidate_id]);
+    const { rows: cl } = await query(`SELECT name FROM clients WHERE id = $1`, [request.client_id]);
+    const msg = await notify({
+      channel: 'inapp', toName: null, toContact: null,
+      subject: `Shift booked — ${isoDate(request.date)} at ${cl[0]?.name}`,
+      body: `You've been booked for a ${request.shift_type} shift at ${cl[0]?.name} on ${isoDate(request.date)} ` +
+            `${String(request.start_time || '07:30').slice(0, 5)}–${String(request.end_time || '20:00').slice(0, 5)}. ` +
+            `Please confirm it in your portal.`,
+      entityType: 'shift', entityId: rows[0].id, status: 'sent',
+    });
+    if (wa[0]) await query(`UPDATE messages SET to_account_id = $1, from_account_id = $2, sent_at = now() WHERE id = $3`,
+      [wa[0].id, req.account.id, msg.id]);
+
+    await audit(req, 'shift.allocated', 'shift', rows[0].id,
+      { request_id: request.id, candidate_id, by: 'supervisor' });
+    res.status(201).json(rows[0]);
   } catch (e) { next(e); }
 });
 
