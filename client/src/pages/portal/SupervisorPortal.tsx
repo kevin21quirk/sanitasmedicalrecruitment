@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { CalendarDays, ClipboardList, UserCheck } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ClipboardList, Mail, MessageSquare, UserCheck } from 'lucide-react';
 import clsx from 'clsx';
 import { api, ApiError } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
@@ -27,10 +27,15 @@ interface Eligible {
   compliant: boolean; compliance_gaps: BookingGap[] | null;
 }
 
+interface OutboxLink { channel: string; to_name: string | null; wa_link: string | null; mailto_link: string | null }
+
 function AllocateModal({ request, onClose, onDone }: { request: SiteRequest; onClose: () => void; onDone: () => void }) {
   const [data, setData] = useState<{ workers: Eligible[] } | null>(null);
   const [block, setBlock] = useState<{ message: string; gaps?: BookingGap[]; candidateId?: number } | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const [contacted, setContacted] = useState<Record<number, string>>({});
+  const [contactErr, setContactErr] = useState<string | null>(null);
+  const [done, setDone] = useState<{ worker: string; notifications: OutboxLink[] } | null>(null);
 
   const load = useCallback(() => {
     api.get<{ workers: Eligible[] }>(`/portal/client/requests/${request.id}/eligible`)
@@ -38,14 +43,26 @@ function AllocateModal({ request, onClose, onDone }: { request: SiteRequest; onC
   }, [request.id]);
   useEffect(load, [load]);
 
-  const allocate = async (cid: number) => {
-    setBusy(cid); setBlock(null);
+  const contact = async (w: Eligible, channel: 'whatsapp' | 'email') => {
+    setContactErr(null);
     try {
-      await api.post(`/portal/client/requests/${request.id}/allocate`, { candidate_id: cid });
-      onDone();
+      const res = await api.post<{ message: OutboxLink }>(`/portal/client/requests/${request.id}/contact-worker`,
+        { candidate_id: w.id, channel });
+      const link = res.message.wa_link || res.message.mailto_link;
+      if (link) window.open(link, '_blank');
+      setContacted((c) => ({ ...c, [w.id]: channel }));
+    } catch (e) { setContactErr(e instanceof Error ? e.message : 'Could not contact worker'); }
+  };
+
+  const allocate = async (w: Eligible) => {
+    setBusy(w.id); setBlock(null);
+    try {
+      const res = await api.post<{ notifications?: OutboxLink[] }>(`/portal/client/requests/${request.id}/allocate`,
+        { candidate_id: w.id });
+      setDone({ worker: w.name, notifications: res.notifications ?? [] });
     } catch (e) {
       const b = e instanceof ApiError ? e.body as { gaps?: BookingGap[] } : {};
-      setBlock({ message: e instanceof Error ? e.message : 'Could not allocate', gaps: b.gaps, candidateId: cid });
+      setBlock({ message: e instanceof Error ? e.message : 'Could not allocate', gaps: b.gaps, candidateId: w.id });
     } finally { setBusy(null); }
   };
 
@@ -65,25 +82,77 @@ function AllocateModal({ request, onClose, onDone }: { request: SiteRequest; onC
           {+w.worked_with_individual > 0 && ` · worked with ${request.individual_name ?? 'resident'} ${w.worked_with_individual}×`}
           {w.block_reason && ` · blocked: ${w.block_reason}`}
         </p>
+        {contacted[w.id] && (
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-brand-600">
+            <CheckCircle2 className="h-3 w-3" /> Contacted by {contacted[w.id] === 'whatsapp' ? 'WhatsApp' : 'email'} — offer sent to their portal too
+          </p>
+        )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {w.compliant ? <Badge value="valid" label="Compliant" /> : <Badge value="expired" label="Not compliant" />}
         {w.compliant && !w.block_reason && (
-          <button className={btnPrimary} disabled={busy === w.id} onClick={() => allocate(w.id)}>
-            {busy === w.id ? 'Booking…' : 'Allocate'}
-          </button>
+          <>
+            <button className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/80 bg-emerald-50/60 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+              title="WhatsApp the worker about this shift" onClick={() => contact(w, 'whatsapp')}>
+              <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+            </button>
+            <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300/80 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white"
+              title="Email the worker about this shift" onClick={() => contact(w, 'email')}>
+              <Mail className="h-3.5 w-3.5" /> Email
+            </button>
+            <button className={btnPrimary} disabled={busy === w.id} onClick={() => allocate(w)}>
+              {busy === w.id ? 'Booking…' : 'Allocate'}
+            </button>
+          </>
         )}
       </div>
     </li>
   );
 
   return (
-    <Modal open onClose={onClose} title={`Allocate — ${fmtDate(request.date)}`}
+    <Modal open onClose={done ? onDone : onClose} title={`Allocate — ${fmtDate(request.date)}`}
       subtitle={`${fmtStatus(request.shift_type)}${request.start_time ? ` ${request.start_time.slice(0, 5)}–${request.end_time?.slice(0, 5)}` : ''}${request.role ? ` · ${request.role}` : ''}${request.individual_name ? ` · for ${request.individual_name}` : ''}`}
       size="lg">
+      {done ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-emerald-300/60 bg-emerald-50/60 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+              <CheckCircle2 className="h-4 w-4" /> {done.worker} is booked
+            </p>
+            <p className="mt-1 text-xs text-emerald-700">
+              They've been messaged in their portal to confirm. Now let your site's contacts know who's coming:
+            </p>
+          </div>
+          {done.notifications.length ? (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Notify the site</p>
+              {done.notifications.map((n, i) => (
+                <button key={i}
+                  className={clsx(
+                    'flex w-full items-center gap-2.5 rounded-xl border px-4 py-2.5 text-left text-sm font-medium transition',
+                    n.channel === 'whatsapp'
+                      ? 'border-emerald-300/80 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100'
+                      : 'border-slate-300/80 bg-white/60 text-slate-700 hover:bg-white')}
+                  onClick={() => window.open(n.wa_link || n.mailto_link || '', '_blank')}>
+                  {n.channel === 'whatsapp' ? <MessageSquare className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                  {n.channel === 'whatsapp' ? 'WhatsApp' : 'Email'} {n.to_name ?? 'the site'} — shift covered
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">No site contacts have a phone or email on file — the office can notify them from the request.</p>
+          )}
+          <div className="flex justify-end">
+            <button className={btnPrimary} onClick={onDone}>Done</button>
+          </div>
+        </div>
+      ) : (
+      <>
       <p className="mb-3 text-[11px] text-slate-400">
-        Only compliant workers can be allocated. Rates are set by the office — you'll never see pay or charge figures.
+        Contact workers about the shift first, or allocate straight away — they get messaged either way.
+        Only compliant workers can be allocated; rates stay with the office.
       </p>
+      {contactErr && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{contactErr}</p>}
       {block && (
         <div className="mb-3">
           <BlockReason message={block.message} gaps={block.gaps} />
@@ -105,6 +174,8 @@ function AllocateModal({ request, onClose, onDone }: { request: SiteRequest; onC
           )}
           {!workers.length && <EmptyState title="No workers on file" hint="The office manages the worker pool." />}
         </div>
+      )}
+      </>
       )}
     </Modal>
   );

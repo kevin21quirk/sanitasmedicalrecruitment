@@ -488,6 +488,20 @@ test('17: supervisor sees the client request, allocates without rates, worker no
   assert.equal(badAlloc.status, 422);
   assert.ok(badAlloc.body.gaps.some((g) => g.type === 'DBS Enhanced' && g.problem === 'missing'));
 
+  // supervisor can ping the worker — offer lands in the worker's portal
+  const ping = await api(`/portal/client/requests/${made.body.id}/contact-worker`, {
+    method: 'POST', cookie: cookies.supervisor, body: { candidate_id: fx.candOk, channel: 'email' } });
+  assert.equal(ping.status, 201, JSON.stringify(ping.body));
+  assert.match(ping.body.message.mailto_link, /^mailto:/);
+  const workerOffers = await api('/portal/offers', { cookie: cookies.worker });
+  assert.ok(workerOffers.body.some((o) => o.request_id === made.body.id), 'offer visible in worker portal');
+  const badChannel = await api(`/portal/client/requests/${made.body.id}/contact-worker`, {
+    method: 'POST', cookie: cookies.supervisor, body: { candidate_id: fx.candOk, channel: 'pigeon' } });
+  assert.equal(badChannel.status, 400);
+
+  // a site contact exists → allocate returns WhatsApp + email send links
+  await query(`INSERT INTO client_contacts (client_id, name, email, phone) VALUES ($1,'TEST Contact','test-contact@example.invalid','07111000111')`, [fx.clientA]);
+
   // compliant worker allocated: shift created, no rates, request fills, worker notified
   const alloc = await api(`/portal/client/requests/${made.body.id}/allocate`, {
     method: 'POST', cookie: cookies.supervisor, body: { candidate_id: fx.candOk } });
@@ -495,11 +509,16 @@ test('17: supervisor sees the client request, allocates without rates, worker no
   fx.shifts.push(alloc.body.id);
   assert.equal(alloc.body.pay_rate, null, 'supervisor booking carries no pay rate');
   assert.equal(alloc.body.charge_rate, null, 'supervisor booking carries no charge rate');
+  const waN = alloc.body.notifications.find((n) => n.channel === 'whatsapp');
+  const emN = alloc.body.notifications.find((n) => n.channel === 'email');
+  assert.match(waN.wa_link, /^https:\/\/wa\.me\/447111000111/, 'client WhatsApp link returned');
+  assert.match(emN.mailto_link, /^mailto:test-contact@example\.invalid/, 'client email link returned');
   const { rows: rq } = await query(`SELECT status FROM shift_requests WHERE id = $1`, [made.body.id]);
   assert.equal(rq[0].status, 'filled');
   const { rows: inbox } = await query(
     `SELECT id FROM messages WHERE entity_type = 'shift' AND entity_id = $1 AND channel = 'inapp'`, [alloc.body.id]);
   assert.equal(inbox.length, 1, 'worker got an in-app notification');
+  await query(`DELETE FROM client_contacts WHERE client_id = $1 AND name = 'TEST Contact'`, [fx.clientA]);
 
   // second allocation refused (filled); request for another site invisible
   const again = await api(`/portal/client/requests/${made.body.id}/allocate`, {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
-import { CalendarDays, ClipboardList, LayoutDashboard, PenLine, Users } from 'lucide-react';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { ArrowRight, CalendarDays, ClipboardList, LayoutDashboard, PenLine, Users } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
@@ -8,7 +8,8 @@ import { Badge, Card, CardHeader, EmptyState, Spinner, btnPrimary, btnGhost, inp
 import { PortalShell } from './Portal';
 
 const PAGES = [
-  { to: '/', label: 'Requests', icon: LayoutDashboard, end: true },
+  { to: '/', label: 'Home', icon: LayoutDashboard, end: true },
+  { to: '/requests', label: 'Requests', icon: ClipboardList },
   { to: '/rota', label: 'Site rota', icon: CalendarDays },
   { to: '/timesheets', label: 'Timesheets', icon: PenLine },
   { to: '/workers', label: 'Our workers', icon: Users },
@@ -38,6 +39,93 @@ interface SharedWorker {
 
 const SHIFT_TYPES = ['day', 'night', 'early', 'late', 'long_day', 'sleep_in'];
 const ROLES = ['Registered Nurse', 'Senior Nurse', 'Healthcare Assistant', 'Senior HCA', 'Support Worker'];
+
+function Home() {
+  const [requests, setRequests] = useState<ClientRequest[] | null>(null);
+  const [rota, setRota] = useState<RotaRow[] | null>(null);
+  const [sheets, setSheets] = useState<ClientTimesheet[] | null>(null);
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const in7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    api.get<ClientRequest[]>('/portal/client/requests').then(setRequests).catch(() => setRequests([]));
+    api.get<RotaRow[]>(`/portal/client/rota?from=${today}&to=${in7}`).then(setRota).catch(() => setRota([]));
+    api.get<ClientTimesheet[]>('/portal/client/timesheets').then(setSheets).catch(() => setSheets([]));
+  }, []);
+
+  if (!requests || !rota || !sheets) return <Spinner />;
+  const open = requests.filter((r) => r.status === 'pending');
+  const unsigned = sheets.filter((t) => !t.client_sig_at);
+  const next = rota[0];
+  const tiles = [
+    { to: '/requests', n: open.length, label: `open request${open.length !== 1 ? 's' : ''}`, urgent: open.some((r) => r.urgency === 'urgent') },
+    { to: '/rota', n: rota.length, label: 'shift' + (rota.length !== 1 ? 's' : '') + ' this week', urgent: false },
+    { to: '/timesheets', n: unsigned.length, label: `timesheet${unsigned.length !== 1 ? 's' : ''} to sign`, urgent: unsigned.length > 0 },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-3 gap-3">
+        {tiles.map((t) => (
+          <Link key={t.to} to={t.to}
+            className={clsx('glass rounded-2xl px-4 py-3.5 text-center transition hover:-translate-y-0.5',
+              t.urgent && 'ring-1 ring-amber-400/60')}>
+            <p className={clsx('font-display text-2xl font-bold', t.urgent ? 'text-amber-600' : 'text-brand-700')}>{t.n}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-slate-500">{t.label}</p>
+          </Link>
+        ))}
+      </div>
+
+      {!!open.length && (
+        <Card className="border-l-4 border-l-brand-500 px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                {open.length} request{open.length > 1 ? 's' : ''} waiting for cover
+              </p>
+              <p className="text-xs text-slate-500">
+                {open.map((r) => `${fmtDate(r.date)} (${fmtStatus(r.shift_type)})`).join(' · ')}
+              </p>
+            </div>
+            <Link to="/requests" className={btnPrimary}>View <ArrowRight className="h-3.5 w-3.5" /></Link>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader title="Next shift at your site" />
+        {!next ? (
+          <EmptyState icon={<CalendarDays className="h-5 w-5" />} title="Nothing booked this week"
+            hint="Use Requests → Request cover to ask for a worker." />
+        ) : (
+          <div className="px-5 pb-4">
+            <p className="text-sm font-medium text-ink">
+              {next.worker_name} <span className="font-normal text-slate-400">({next.worker_role})</span>
+            </p>
+            <p className="text-xs text-slate-500">
+              {fmtDate(next.shift_date)} · {next.start_time?.slice(0, 5)}–{next.end_time?.slice(0, 5)} · {fmtStatus(next.shift_type)}
+              {next.individual_name && ` · with ${next.individual_name}`}
+            </p>
+            <Link to="/rota" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+              Full rota <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        )}
+      </Card>
+
+      {!!unsigned.length && (
+        <Card className="border-l-4 border-l-amber-400 px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-ink">{unsigned.length} timesheet{unsigned.length > 1 ? 's' : ''} need your signature</p>
+              <p className="text-xs text-slate-500">Signing confirms the hours worked and locks the timesheet.</p>
+            </div>
+            <Link to="/timesheets" className={btnPrimary}>Sign now <ArrowRight className="h-3.5 w-3.5" /></Link>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
 
 function Requests() {
   const [rows, setRows] = useState<ClientRequest[] | null>(null);
@@ -345,10 +433,12 @@ export default function ClientPortal() {
   return (
     <PortalShell title="Client portal" pages={PAGES}>
       <Routes>
-        <Route path="/" element={<Requests />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/requests" element={<Requests />} />
         <Route path="/rota" element={<Rota />} />
         <Route path="/timesheets" element={<Timesheets />} />
         <Route path="/workers" element={<Workers />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </PortalShell>
   );

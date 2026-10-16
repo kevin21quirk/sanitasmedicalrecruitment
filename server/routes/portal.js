@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requirePortal } from '../lib/auth.js';
 import { audit } from '../lib/audit.js';
-import { notify } from '../lib/notify.js';
+import { notify, waReplyFooter, appUrlFor } from '../lib/notify.js';
 import { upload, replacePhoto } from '../lib/files.js';
 import { workerComplianceFor } from '../lib/compliance.js';
 import { isoDate } from '../lib/dates.js';
@@ -307,6 +307,52 @@ r.get('/client/requests/:id/eligible', requirePortal('supervisor'), async (req, 
   } catch (e) { next(e); }
 });
 
+// Supervisor pings a worker about a pending request — creates an offer row
+// (so it lands in the worker's portal inbox for a recorded response) and
+// returns the wa.me / mailto link for the supervisor to send. Contact
+// details are never listed in bulk; they only exist inside the link.
+r.post('/client/requests/:id/contact-worker', requirePortal('supervisor'), async (req, res, next) => {
+  try {
+    const { candidate_id, channel, note } = req.body || {};
+    if (!candidate_id) return res.status(400).json({ error: 'candidate_id required' });
+    if (!['whatsapp', 'email'].includes(channel)) {
+      return res.status(400).json({ error: 'channel must be whatsapp or email' });
+    }
+    const { rows: reqs } = await query(`SELECT * FROM shift_requests WHERE id = $1`, [req.params.id]);
+    const request = reqs[0];
+    if (!request || request.client_id !== req.account.clientId) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    if (request.status !== 'pending') {
+      return res.status(409).json({ error: `Request is ${request.status}` });
+    }
+    const { rows: w } = await query(
+      `SELECT first_name || ' ' || last_name AS name, phone, email FROM candidates
+       WHERE id = $1 AND erased_at IS NULL`, [candidate_id]);
+    if (!w[0]) return res.status(404).json({ error: 'Worker not found' });
+    const to = channel === 'whatsapp' ? w[0].phone : w[0].email;
+    if (!to) {
+      return res.status(422).json({ error: `No ${channel === 'whatsapp' ? 'phone number' : 'email address'} on file for this worker` });
+    }
+
+    // offer row → appears in the worker's portal even if the ping goes via WhatsApp
+    const { rows: o } = await query(
+      `INSERT INTO offers (request_id, candidate_id) VALUES ($1,$2)
+       ON CONFLICT DO NOTHING RETURNING *`, [request.id, candidate_id]);
+    const { rows: cl } = await query(`SELECT name FROM clients WHERE id = $1`, [request.client_id]);
+    const body = `Hi ${w[0].name.split(' ')[0]}, a ${request.shift_type} shift is available at ${cl[0]?.name} ` +
+      `on ${isoDate(request.date)} ${String(request.start_time || '07:30').slice(0, 5)}–${String(request.end_time || '20:00').slice(0, 5)}.` +
+      (note ? ` ${note}` : '') + waReplyFooter(appUrlFor(req), { offer: true });
+    const message = await notify({
+      channel, toName: w[0].name, toContact: to,
+      subject: `Shift available — ${cl[0]?.name} ${isoDate(request.date)}`,
+      body, entityType: 'offer', entityId: o[0]?.id ?? null, status: 'queued',
+    });
+    await audit(req, 'offer.contacted', 'shift_request', request.id, { candidate_id, channel });
+    res.status(201).json({ offer: o[0] || null, message });
+  } catch (e) { next(e); }
+});
+
 // Supervisor allocates a worker to a pending request at their site.
 // Compliance + do-not-offer checks are identical to office allocation; pay and
 // charge rates are never set or exposed here — the office prices the shift.
@@ -358,7 +404,11 @@ r.post('/client/requests/:id/allocate', requirePortal('supervisor'), async (req,
     // tell the worker via in-app inbox (they may have no WhatsApp flow from a supervisor)
     const { rows: wa } = await query(
       `SELECT id FROM accounts WHERE candidate_id = $1 AND kind = 'worker' AND is_active`, [candidate_id]);
-    const { rows: cl } = await query(`SELECT name FROM clients WHERE id = $1`, [request.client_id]);
+    const { rows: w } = await query(
+      `SELECT first_name || ' ' || last_name AS name FROM candidates WHERE id = $1`, [candidate_id]);
+    const { rows: cl } = await query(`SELECT name, email FROM clients WHERE id = $1`, [request.client_id]);
+    const { rows: ind } = request.individual_id
+      ? await query(`SELECT name FROM individuals WHERE id = $1`, [request.individual_id]) : { rows: [] };
     const msg = await notify({
       channel: 'inapp', toName: null, toContact: null,
       subject: `Shift booked — ${isoDate(request.date)} at ${cl[0]?.name}`,
@@ -370,9 +420,27 @@ r.post('/client/requests/:id/allocate', requirePortal('supervisor'), async (req,
     if (wa[0]) await query(`UPDATE messages SET to_account_id = $1, from_account_id = $2, sent_at = now() WHERE id = $3`,
       [wa[0].id, req.account.id, msg.id]);
 
+    // confirm to the site's contacts — WhatsApp + email links for the
+    // supervisor to send; every row is logged in the outbox regardless
+    const confirmBody = `${w[0]?.name} is booked for the ${request.shift_type} shift on ${isoDate(request.date)} ` +
+      `${String(request.start_time || '07:30').slice(0, 5)}–${String(request.end_time || '20:00').slice(0, 5)} ` +
+      `at ${cl[0]?.name}${ind[0] ? `, with ${ind[0].name}` : ''}. — Sanitas Medical Recruitment`;
+    const { rows: contacts } = await query(
+      `SELECT name, email, phone FROM client_contacts WHERE client_id = $1`, [request.client_id]);
+    const notifications = [];
+    const targets = contacts.length ? contacts : [{ name: cl[0]?.name, email: cl[0]?.email, phone: null }];
+    for (const c of targets) {
+      if (c.phone) notifications.push(await notify({
+        channel: 'whatsapp', toName: c.name, toContact: c.phone, subject: 'Worker booked',
+        body: confirmBody, entityType: 'shift', entityId: rows[0].id, status: 'queued' }));
+      if (c.email) notifications.push(await notify({
+        channel: 'email', toName: c.name, toContact: c.email, subject: 'Worker booked — shift covered',
+        body: confirmBody, entityType: 'shift', entityId: rows[0].id, status: 'queued' }));
+    }
+
     await audit(req, 'shift.allocated', 'shift', rows[0].id,
-      { request_id: request.id, candidate_id, by: 'supervisor' });
-    res.status(201).json(rows[0]);
+      { request_id: request.id, candidate_id, by: 'supervisor', client_notified: notifications.length });
+    res.status(201).json({ ...rows[0], notifications });
   } catch (e) { next(e); }
 });
 
