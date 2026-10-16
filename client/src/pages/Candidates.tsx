@@ -50,7 +50,11 @@ export default function Candidates() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<Candidate | null>(null);
-  const [step, setStep] = useState<'form' | 'docs' | 'photo'>('form');
+  const [step, setStep] = useState<'form' | 'docs' | 'photo' | 'login'>('form');
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginSaved, setLoginSaved] = useState(false);
+  const [loginErr, setLoginErr] = useState('');
+  const [loginBusy, setLoginBusy] = useState(false);
   const [reqs, setReqs] = useState<string[]>([]);
   const [recorded, setRecorded] = useState<Set<string>>(new Set());
   const [openReq, setOpenReq] = useState<string | null>(null);
@@ -97,6 +101,8 @@ export default function Candidates() {
       setForm(emptyForm);
       load();
       api.get<CandidateStats>('/candidates/stats').then(setStats).catch(() => {});
+      setLoginForm({ email: c.email ?? '', password: '' });
+      setLoginSaved(false); setLoginErr('');
       const reqList = await api.get<string[]>(`/candidates/requirements?role=${encodeURIComponent(form.role)}`).catch(() => [] as string[]);
       setReqs(reqList);
       setRecorded(new Set());
@@ -129,9 +135,23 @@ export default function Candidates() {
     setStep('photo');
   };
 
+  const createLogin = async () => {
+    if (!created) return;
+    setLoginBusy(true); setLoginErr('');
+    try {
+      await api.post('/accounts', {
+        kind: 'worker', candidate_id: created.id,
+        email: loginForm.email, password: loginForm.password,
+      });
+      setLoginSaved(true);
+    } catch (e) { setLoginErr(e instanceof Error ? e.message : 'Could not create login'); }
+    finally { setLoginBusy(false); }
+  };
+
   const closeAdd = () => {
     setShowAdd(false); setCreated(null); setFormError(null);
     setStep('form'); setReqs([]); setRecorded(new Set()); setOpenReq(null); setReqErr('');
+    setLoginForm({ email: '', password: '' }); setLoginSaved(false); setLoginErr('');
   };
 
   const pages = Math.max(1, Math.ceil(total / limit));
@@ -283,10 +303,11 @@ export default function Candidates() {
 
       <Modal
         open={showAdd} onClose={closeAdd} size="lg"
-        title={step === 'docs' ? 'Compliance requirements' : created ? 'Add a profile photo' : 'Add Candidate'}
+        title={step === 'docs' ? 'Compliance requirements' : step === 'photo' ? 'Add a profile photo' : step === 'login' ? 'Portal login' : 'Add Candidate'}
         subtitle={
           step === 'docs' ? 'Record what the worker has now — anything left is logged and flagged on their profile.'
-          : created ? 'Optional — you can do this later from the profile.'
+          : step === 'photo' ? 'Optional — you can do this later from the profile.'
+          : step === 'login' ? 'Give them a sign-in so they can see shifts, offers and documents in the worker portal — or skip and do it later from Settings → Accounts.'
           : 'Core details now; documents and compliance later.'}
         icon={<UserPlus className="h-4 w-4" />}
         footer={step === 'docs' ? (
@@ -296,10 +317,17 @@ export default function Candidates() {
             </button>
             <button className={btnPrimary} onClick={proceedFromDocs}>Continue</button>
           </>
-        ) : created ? (
+        ) : step === 'photo' ? (
           <>
-            <button className={btnGhost} onClick={closeAdd}>Skip</button>
-            <button className={btnPrimary} onClick={() => { closeAdd(); navigate(`/candidates/${created.id}`); }}>Open profile</button>
+            <button className={btnGhost} onClick={closeAdd}>Skip all</button>
+            <button className={btnPrimary} onClick={() => setStep('login')}>Continue</button>
+          </>
+        ) : step === 'login' ? (
+          <>
+            {!loginSaved && <button className={btnGhost} onClick={closeAdd}>Skip</button>}
+            <button className={btnPrimary} onClick={() => { closeAdd(); navigate(`/candidates/${created!.id}`); }}>
+              {loginSaved ? 'Done — open profile' : 'Done'}
+            </button>
           </>
         ) : (
           <>
@@ -365,12 +393,37 @@ export default function Candidates() {
               Records are added as <em>pending</em> — compliance marks them valid after review. Sites may add extra requirements.
             </p>
           </div>
-        ) : created ? (
+        ) : step === 'photo' && created ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <PhotoUpload endpoint={`/candidates/${created.id}/photo`} name={`${created.first_name} ${created.last_name}`} photoId={created.photo_file_id}
               onDone={() => api.get<{ photo_file_id: number }>(`/candidates/${created.id}`).then((c) => setCreated({ ...created, photo_file_id: c.photo_file_id })).then(load)} />
             <p className="text-sm font-medium text-ink">{created.first_name} {created.last_name}</p>
             <p className="text-xs text-slate-500">Click the avatar to upload a photo (JPG/PNG, under 3MB).</p>
+          </div>
+        ) : step === 'login' && created ? (
+          <div className="space-y-3">
+            {loginSaved ? (
+              <div className="rounded-xl border border-emerald-300/60 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+                <p className="font-semibold">Login created for {loginForm.email}</p>
+                <p className="mt-1 text-xs">They sign in on the main login page and must choose their own password on first sign-in. You'll find the account under Settings → Accounts.</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Login email *"><input type="email" className={inputCls} value={loginForm.email}
+                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} /></Field>
+                  <Field label="Temporary password *" hint="min 8 chars — they'll be asked to change it">
+                    <input type="text" className={inputCls} value={loginForm.password}
+                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} /></Field>
+                </div>
+                {loginErr && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{loginErr}</p>}
+                <div className="flex justify-end">
+                  <button className={btnPrimary} disabled={loginBusy || !loginForm.email.trim() || loginForm.password.length < 8} onClick={createLogin}>
+                    {loginBusy ? 'Creating…' : 'Create login'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
