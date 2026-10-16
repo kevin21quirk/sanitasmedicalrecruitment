@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { startOfWeek, addDays, format, isSameDay, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Mail, MessageSquare, Plus } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { Shift, Candidate, Client } from '../lib/types';
+import { BlockReason, BookingGap, BookingConflict } from '../components/BlockReason';
 import {
   Badge, Card, Spinner, Modal, PageHeader,
   inputCls, btnPrimary, btnGhost, fmtStatus,
@@ -55,6 +56,7 @@ export default function ShiftsCalendar() {
   const [notifying, setNotifying] = useState<'' | 'whatsapp' | 'email'>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [block, setBlock] = useState<{ gaps?: BookingGap[]; conflicts?: BookingConflict[] } | null>(null);
   const [form, setForm] = useState({
     candidate_id: '', client_id: '', shift_date: format(new Date(), 'yyyy-MM-dd'),
     shift_type: 'day' as ShiftType, start_time: '07:30', end_time: '20:00', hours: '12',
@@ -102,10 +104,12 @@ export default function ShiftsCalendar() {
   const submit = async () => {
     if (!form.candidate_id || !form.client_id || !form.shift_date) {
       setError('Candidate, care home and date are required.');
+      setBlock(null);
       return;
     }
     setSaving(true);
     setError('');
+    setBlock(null);
     try {
       await api.post('/shifts', {
         candidate_id: +form.candidate_id,
@@ -127,6 +131,10 @@ export default function ShiftsCalendar() {
       fetchShifts();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to book shift');
+      if (e instanceof ApiError) {
+        const b = e.body as { gaps?: BookingGap[]; conflicts?: BookingConflict[] };
+        if (b.gaps?.length || b.conflicts?.length) setBlock({ gaps: b.gaps, conflicts: b.conflicts });
+      }
     } finally {
       setSaving(false);
     }
@@ -373,7 +381,10 @@ export default function ShiftsCalendar() {
               />
             </div>
           </div>
-          {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+          {error && (block
+            ? <BlockReason message={error} gaps={block.gaps} conflicts={block.conflicts}
+                candidateId={+form.candidate_id || undefined} clientId={+form.client_id || undefined} />
+            : <p className="text-xs font-medium text-red-600">{error}</p>)}
           <div className="flex justify-end gap-2 pt-1">
             <button className={btnGhost} onClick={() => setShowModal(false)}>Cancel</button>
             <button className={btnPrimary} onClick={submit} disabled={saving}>

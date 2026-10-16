@@ -1,4 +1,5 @@
 import { query } from '../db.js';
+import { isoDate } from './dates.js';
 
 // Document types that must be valid before a worker can be booked (blocking).
 // The baseline list applies to every client; client_requirements rows add or
@@ -56,8 +57,8 @@ export async function workerComplianceFor(candidateId, clientId) {
     if (!doc) gaps.push({ type, problem: 'missing' });
     else {
       const health = docHealth(doc);
-      if (BLOCKING_STATUS.includes(health)) gaps.push({ type, problem: health });
-      else if (health === 'pending') gaps.push({ type, problem: 'pending verification' });
+      if (BLOCKING_STATUS.includes(health)) gaps.push({ type, problem: health, expiry_date: isoDate(doc.expiry_date) });
+      else if (health === 'pending') gaps.push({ type, problem: 'pending verification', expiry_date: isoDate(doc.expiry_date) });
     }
   }
   return { ok: gaps.length === 0, gaps, candidate };

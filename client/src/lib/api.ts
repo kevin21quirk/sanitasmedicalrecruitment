@@ -1,5 +1,17 @@
 const BASE = '/api';
 
+// Carries the server's error body (e.g. compliance gaps, booking conflicts)
+// so callers can explain *why* a request was rejected.
+export class ApiError extends Error {
+  status: number;
+  body: Record<string, unknown>;
+  constructor(status: number, body: Record<string, unknown>) {
+    super(typeof body.error === 'string' ? body.error : `Request failed: ${status}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -8,7 +20,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed: ${res.status}`);
+    throw new ApiError(res.status, body);
   }
   if (res.status === 204) return undefined as T;
   return res.json();

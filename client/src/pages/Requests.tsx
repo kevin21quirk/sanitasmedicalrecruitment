@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, Plus, RefreshCw, Send, Star, UserCheck, X, Ban, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { fmtDate } from '../lib/format';
 import { Client, ShiftRequest } from '../lib/types';
 import { Badge, Card, CardHeader, EmptyState, PageHeader, Spinner, btnPrimary, btnGhost, inputCls, fmtStatus } from '../components/ui';
+import { BlockReason, BookingGap, BookingConflict } from '../components/BlockReason';
 
 interface EligibleWorker {
   id: number; name: string; role: string; status: string; phone: string | null;
@@ -199,6 +200,7 @@ function NewRequest({ clients, onClose, onSaved }: { clients: Client[]; onClose:
 function AllocateDrawer({ request, onClose, onDone }: { request: ShiftRequest; onClose: () => void; onDone: () => void }) {
   const [data, setData] = useState<{ workers: EligibleWorker[]; auto_ranking: boolean } | null>(null);
   const [error, setError] = useState('');
+  const [block, setBlock] = useState<{ message: string; gaps?: BookingGap[]; conflicts?: BookingConflict[]; candidateId?: number } | null>(null);
 
   const load = useCallback(() => {
     api.get<{ workers: EligibleWorker[]; auto_ranking: boolean }>(`/requests/${request.id}/eligible`)
@@ -207,15 +209,21 @@ function AllocateDrawer({ request, onClose, onDone }: { request: ShiftRequest; o
   useEffect(load, [load]);
 
   const offer = async (cid: number) => {
-    await api.post(`/requests/${request.id}/offer`, { candidate_ids: [cid] }).catch((e) => alert(e.message));
+    await api.post(`/requests/${request.id}/offer`, { candidate_ids: [cid] }).catch((e) =>
+      setBlock({ message: e instanceof Error ? e.message : 'Could not send offer', candidateId: cid }));
     load();
   };
   const allocate = async (cid: number) => {
     try {
+      setBlock(null);
       await api.post(`/requests/${request.id}/allocate`, { candidate_id: cid });
       onDone();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not allocate');
+      const ae = e instanceof ApiError ? e.body as { gaps?: BookingGap[]; conflicts?: BookingConflict[] } : {};
+      setBlock({
+        message: e instanceof Error ? e.message : 'Could not allocate',
+        gaps: ae.gaps, conflicts: ae.conflicts, candidateId: cid,
+      });
       load();
     }
   };
@@ -242,6 +250,12 @@ function AllocateDrawer({ request, onClose, onDone }: { request: ShiftRequest; o
           <button className={btnGhost} onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
         {error && <p className="mt-3 rounded bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+        {block && (
+          <div className="mt-3">
+            <BlockReason message={block.message} gaps={block.gaps} conflicts={block.conflicts}
+              candidateId={block.candidateId} clientId={request.client_id} />
+          </div>
+        )}
         {!data ? <Spinner /> : (
           <>
             <WorkerGroup title={`Available & clear (${ready.length})`} workers={ready} onOffer={offer} onAllocate={allocate} />
