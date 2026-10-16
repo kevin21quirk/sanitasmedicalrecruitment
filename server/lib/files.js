@@ -19,6 +19,11 @@ const hasBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN;
 // Without BLOB_READ_WRITE_TOKEN (local dev) falls back to a data-less record
 // marked pending so the flow is still exercisable.
 export async function storeFile({ buffer, filename, mime, ownerType, ownerId, label, uploadedBy }) {
+  if (buffer && process.env.VERCEL && !hasBlob()) {
+    throw Object.assign(
+      new Error('File storage is not configured — connect a Vercel Blob store (BLOB_READ_WRITE_TOKEN)'),
+      { status: 503 });
+  }
   let blobUrl = null;
   if (hasBlob() && buffer) {
     const blob = await put(`sanitas/${ownerType}/${ownerId}/${Date.now()}-${filename}`, buffer, {

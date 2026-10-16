@@ -64,8 +64,10 @@ app.use('/api/messages', requireAuth, messages);
 app.use('/api/files', files); // per-file authorisation inside the route
 
 app.use((err, req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Internal server error', detail: err.message });
+  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error(err);
+  // err.status marks a deliberate, client-safe message; anything else stays generic
+  res.status(status).json({ error: err?.status ? err.message : 'Internal server error' });
 });
 
 export default app;

@@ -159,7 +159,7 @@ export function PhotoUpload({ endpoint, name, photoId, color, size = 'xl', squar
         )}
       </button>
       <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
-      {err && <span className="text-[10px] text-red-600">{err}</span>}
+      {err && <span className="max-w-40 text-center text-xs font-medium text-red-600">{err}</span>}
     </div>
   );
 }
