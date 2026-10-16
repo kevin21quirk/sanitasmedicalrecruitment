@@ -430,6 +430,7 @@ test('15b: POST /shifts/:id/notify composes and logs a WhatsApp message', async 
   const body = decodeURIComponent(r.body.wa_link.split('text=')[1]);
   assert.ok(body.includes('TEST Home A'), 'client name included');
   assert.ok(body.includes('Bring photo ID.'), 'staff note appended');
+  assert.ok(body.includes('Reply with a number'), 'numbered reply options included');
   assert.ok(!body.includes('14.50') && !body.includes('20.00'), 'no rates leaked');
 });
 

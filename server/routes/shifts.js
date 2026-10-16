@@ -3,7 +3,7 @@ import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { workerComplianceFor } from '../lib/compliance.js';
 import { isoDate } from '../lib/dates.js';
-import { notify } from '../lib/notify.js';
+import { notify, waReplyFooter, appUrlFor } from '../lib/notify.js';
 
 const r = Router();
 
@@ -113,7 +113,8 @@ r.post('/:id/notify', async (req, res, next) => {
       `${s.client_name}${addr ? `\n${addr}` : ''}` +
       (s.individual_name ? `\nWith: ${s.individual_name}` : '');
     if (req.body?.note?.trim()) body += `\n\n${req.body.note.trim().slice(0, 1000)}`;
-    body += `\n\nPlease confirm in your portal or reply to this message. — Sanitas`;
+    if (channel === 'whatsapp') body += waReplyFooter(appUrlFor(req));
+    else body += `\n\nPlease confirm in your portal or reply to this email. — Sanitas Medical Recruitment`;
 
     const msg = await notify({
       channel, toName: s.worker_name, toContact: to,

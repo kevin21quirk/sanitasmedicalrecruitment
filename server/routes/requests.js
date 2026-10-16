@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
-import { notify } from '../lib/notify.js';
+import { notify, waReplyFooter, appUrlFor } from '../lib/notify.js';
 import { workerComplianceFor } from '../lib/compliance.js';
 import { getSetting } from '../lib/settings.js';
 
@@ -169,7 +169,8 @@ r.post('/requests/:id/offer', async (req, res, next) => {
       if (!o.length) continue;
       const { rows: w } = await query(`SELECT first_name || ' ' || last_name AS name, phone, email FROM candidates WHERE id = $1`, [cid]);
       const body = `Hi ${w[0]?.name?.split(' ')[0]}, shift available at ${request.client_name} on ${request.date}` +
-        `${request.start_time ? ` ${request.start_time}–${request.end_time}` : ''} (${request.shift_type}). Reply YES to accept or log in to confirm. — Sanitas`;
+        `${request.start_time ? ` ${request.start_time}–${request.end_time}` : ''} (${request.shift_type}).` +
+        waReplyFooter(appUrlFor(req), { offer: true });
       if (w[0]?.phone) {
         await notify({ channel: 'whatsapp', toName: w[0].name, toContact: w[0].phone, subject: 'Shift offer',
           body, entityType: 'offer', entityId: o[0].id, createdBy: req.account?.userId });
@@ -226,7 +227,8 @@ r.post('/requests/:id/allocate', async (req, res, next) => {
     const { rows: cl } = await query(`SELECT name, email, standing_instructions FROM clients WHERE id = $1`, [request.client_id]);
     const { rows: ind } = request.individual_id
       ? await query(`SELECT name FROM individuals WHERE id = $1`, [request.individual_id]) : { rows: [] };
-    const confirmBody = `Confirmed: ${request.shift_type} shift at ${cl[0]?.name} on ${request.date}, ${request.start_time || ''}–${request.end_time || ''}${ind[0] ? `, with ${ind[0].name}` : ''}. Please log in to confirm.${cl[0]?.standing_instructions ? `\n\nSite instructions: ${cl[0].standing_instructions}` : ''}`;
+    const confirmBody = `Confirmed: ${request.shift_type} shift at ${cl[0]?.name} on ${request.date}, ${request.start_time || ''}–${request.end_time || ''}${ind[0] ? `, with ${ind[0].name}` : ''}.${cl[0]?.standing_instructions ? `\n\nSite instructions: ${cl[0].standing_instructions}` : ''}` +
+      waReplyFooter(appUrlFor(req));
     if (w[0]?.phone) {
       await notify({ channel: 'whatsapp', toName: w[0].name, toContact: w[0].phone, subject: 'Shift confirmed',
         body: confirmBody, entityType: 'shift', entityId: rows[0].id, createdBy: req.account?.userId });
