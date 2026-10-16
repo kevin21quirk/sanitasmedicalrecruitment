@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { workerComplianceFor } from '../lib/compliance.js';
 import { isoDate } from '../lib/dates.js';
+import { notify } from '../lib/notify.js';
 
 const r = Router();
 
@@ -84,6 +85,47 @@ r.post('/', async (req, res, next) => {
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
 });
+
+// 4.6 — send the worker their shift details via WhatsApp (wa.me) or email.
+// The message is composed server-side from live shift data, logged to the
+// outbox, and the click-to-send link is returned for the staff member.
+r.post('/:id/notify', async (req, res, next) => {
+  try {
+    const channel = req.body?.channel === 'email' ? 'email' : 'whatsapp';
+    const { rows } = await query(
+      `SELECT s.*, c.first_name || ' ' || c.last_name AS worker_name, c.phone, c.email,
+              cl.name AS client_name, cl.address AS client_address, cl.town AS client_town, cl.postcode AS client_postcode,
+              i.name AS individual_name
+       FROM shifts s
+       JOIN candidates c ON c.id = s.candidate_id
+       JOIN clients cl ON cl.id = s.client_id
+       LEFT JOIN individuals i ON i.id = s.individual_id
+       WHERE s.id = $1`, [req.params.id]);
+    const s = rows[0];
+    if (!s) return res.status(404).json({ error: 'Shift not found' });
+    const to = channel === 'whatsapp' ? s.phone : s.email;
+    if (!to) return res.status(422).json({ error: `Worker has no ${channel === 'whatsapp' ? 'phone number' : 'email address'} on file` });
+
+    const addr = [s.client_address, s.client_town, s.client_postcode].filter(Boolean).join(', ');
+    let body =
+      `Hi ${s.worker_name.split(' ')[0]} — shift details from Sanitas:\n\n` +
+      `${isoDate(s.shift_date)} · ${String(s.start_time).slice(0, 5)}–${String(s.end_time).slice(0, 5)} (${fmtType(s.shift_type)})\n` +
+      `${s.client_name}${addr ? `\n${addr}` : ''}` +
+      (s.individual_name ? `\nWith: ${s.individual_name}` : '');
+    if (req.body?.note?.trim()) body += `\n\n${req.body.note.trim().slice(0, 1000)}`;
+    body += `\n\nPlease confirm in your portal or reply to this message. — Sanitas`;
+
+    const msg = await notify({
+      channel, toName: s.worker_name, toContact: to,
+      subject: `Shift ${isoDate(s.shift_date)} — ${s.client_name}`, body,
+      entityType: 'shift', entityId: s.id, createdBy: req.account?.userId,
+    });
+    await audit(req, 'shift.notified', 'shift', s.id, { channel, to: to });
+    res.status(201).json(msg);
+  } catch (e) { next(e); }
+});
+
+const fmtType = (t) => ({ day: 'Day', night: 'Night', early: 'Early', late: 'Late', long_day: 'Long day', sleep_in: 'Sleep-in' }[t] || t);
 
 r.patch('/:id', async (req, res, next) => {
   try {

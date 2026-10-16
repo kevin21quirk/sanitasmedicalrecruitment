@@ -97,6 +97,13 @@ async function addClient(tag) {
 before(async () => {
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}/api`;
+  // Staff fixture accounts: force a known password so UI-side resets can't break the suite.
+  const staffPw = hashPassword('sanitas123');
+  await query(
+    `UPDATE accounts SET password_hash = $1, must_reset = FALSE
+     WHERE email = ANY($2::text[])`,
+    [staffPw, ['jill@sanitasmedicalrecruitment.co.uk', 'sam@sanitasmedicalrecruitment.co.uk',
+               'amelia@sanitasmedicalrecruitment.co.uk', 'james@sanitasmedicalrecruitment.co.uk']]);
   cookies.admin = await login('jill@sanitasmedicalrecruitment.co.uk', 'sanitas123');
   cookies.finance = await login('sam@sanitasmedicalrecruitment.co.uk', 'sanitas123');
   cookies.compliance = await login('amelia@sanitasmedicalrecruitment.co.uk', 'sanitas123');
@@ -398,6 +405,32 @@ test('15: allocation is human-led — eligible list is advisory only', async () 
   assert.equal(before_[0].n, after_[0].n, 'viewing eligibility creates no shifts');
   // and no field scores or ranks a worker for the user
   assert.ok(!list.body.workers.some((w) => 'score' in w || 'rank' in w || 'recommended' in w));
+});
+
+// ── 15b. WhatsApp shift details to the worker ───────────────────────────────
+test('15b: POST /shifts/:id/notify composes and logs a WhatsApp message', async () => {
+  const s = await api('/shifts', { method: 'POST', body: {
+    candidate_id: fx.candOk, client_id: fx.clientA, shift_date: nextDay(3),
+    start_time: '07:30', end_time: '20:00', hours: 12, shift_type: 'day',
+    pay_rate: '14.50', charge_rate: '20.00' } });
+  assert.equal(s.status, 201, JSON.stringify(s.body));
+  fx.shifts.push(s.body.id);
+
+  // no phone on file → visible failure, nothing logged
+  const noPhone = await api(`/shifts/${s.body.id}/notify`, { method: 'POST', body: { channel: 'whatsapp' } });
+  assert.equal(noPhone.status, 422);
+
+  await query(`UPDATE candidates SET phone = '07123456789' WHERE id = $1`, [fx.candOk]);
+  const r = await api(`/shifts/${s.body.id}/notify`, { method: 'POST', body: { channel: 'whatsapp', note: 'Bring photo ID.' } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(r.body.channel, 'whatsapp');
+  assert.equal(r.body.entity_type, 'shift');
+  assert.equal(r.body.entity_id, s.body.id);
+  assert.match(r.body.wa_link, /^https:\/\/wa\.me\/447123456789\?text=/);
+  const body = decodeURIComponent(r.body.wa_link.split('text=')[1]);
+  assert.ok(body.includes('TEST Home A'), 'client name included');
+  assert.ok(body.includes('Bring photo ID.'), 'staff note appended');
+  assert.ok(!body.includes('14.50') && !body.includes('20.00'), 'no rates leaked');
 });
 
 // ── 16. Existing features still respond ─────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { startOfWeek, addDays, format, isSameDay, parseISO } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Mail, MessageSquare, Plus } from 'lucide-react';
 import { api } from '../lib/api';
 import { Shift, Candidate, Client } from '../lib/types';
 import {
@@ -49,6 +49,10 @@ export default function ShiftsCalendar() {
   const [clients, setClients] = useState<Client[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [selShift, setSelShift] = useState<Shift | null>(null);
+  const [notifyNote, setNotifyNote] = useState('');
+  const [notifyErr, setNotifyErr] = useState('');
+  const [notifying, setNotifying] = useState<'' | 'whatsapp' | 'email'>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
@@ -126,6 +130,19 @@ export default function ShiftsCalendar() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const notifyWorker = async (s: Shift, channel: 'whatsapp' | 'email') => {
+    setNotifying(channel); setNotifyErr('');
+    try {
+      const msg = await api.post<{ wa_link?: string | null; mailto_link?: string | null }>(
+        `/shifts/${s.id}/notify`, { channel, note: notifyNote || undefined });
+      const link = channel === 'whatsapp' ? msg.wa_link : msg.mailto_link;
+      if (link) window.open(link, '_blank');
+      setSelShift(null);
+    } catch (e) {
+      setNotifyErr(e instanceof Error ? e.message : 'Failed to compose message');
+    } finally { setNotifying(''); }
   };
 
   const stats = [
@@ -207,10 +224,10 @@ export default function ShiftsCalendar() {
                 </div>
                 <div className="scroll-thin flex-1 space-y-2 overflow-y-auto p-2">
                   {dayShifts.map((s) => (
-                    <Link
+                    <button
                       key={s.id}
-                      to={`/candidates/${s.candidate_id}`}
-                      className="block rounded-lg border border-slate-200 border-l-4 bg-white p-2 transition-shadow hover:shadow-sm"
+                      onClick={() => { setSelShift(s); setNotifyNote(''); setNotifyErr(''); }}
+                      className="block w-full rounded-lg border border-slate-200 border-l-4 bg-white p-2 text-left transition-shadow hover:shadow-sm"
                       style={{ borderLeftColor: TYPE_COLORS[s.shift_type] }}
                     >
                       <p className="text-[11px] font-semibold text-slate-500">
@@ -219,7 +236,7 @@ export default function ShiftsCalendar() {
                       <p className="truncate text-xs font-medium text-ink">{s.candidate_name}</p>
                       <p className="truncate text-[11px] text-slate-500">{s.client_name}</p>
                       <Badge value={s.status} className="mt-1" />
-                    </Link>
+                    </button>
                   ))}
                   {!dayShifts.length && (
                     <p className="px-2 py-6 text-center text-[11px] text-slate-300">No shifts</p>
@@ -230,6 +247,40 @@ export default function ShiftsCalendar() {
           })}
         </div>
       )}
+
+      {/* Shift detail + notify worker */}
+      <Modal open={!!selShift} onClose={() => setSelShift(null)}
+        title={selShift ? `${selShift.shift_date ? format(parseISO(selShift.shift_date), 'EEE d MMM') : ''} — ${selShift.client_name}` : ''}>
+        {selShift && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className={labelCls}>Worker</p>
+                <Link to={`/candidates/${selShift.candidate_id}`} className="font-medium text-brand-700 hover:underline">{selShift.candidate_name}</Link></div>
+              <div><p className={labelCls}>Status</p><Badge value={selShift.status} /></div>
+              <div><p className={labelCls}>Time</p>
+                <p className="font-medium text-ink">{selShift.start_time.slice(0, 5)}–{selShift.end_time.slice(0, 5)} · {fmtStatus(selShift.shift_type)} · {selShift.hours}h</p></div>
+              <div><p className={labelCls}>Timesheet</p><p className="font-medium text-ink">{fmtStatus(selShift.timesheet_status ?? 'not_submitted')}</p></div>
+            </div>
+
+            <div className="rounded-xl bg-slate-900/[0.03] p-3">
+              <p className={labelCls}>Message the worker (logged to the outbox)</p>
+              <textarea rows={2} className={clsx(inputCls, 'mb-2 resize-y')} placeholder="Optional extra note to append…"
+                value={notifyNote} onChange={(e) => setNotifyNote(e.target.value)} />
+              <div className="flex gap-2">
+                <button className={btnPrimary} disabled={!!notifying}
+                  onClick={() => notifyWorker(selShift, 'whatsapp')}>
+                  <MessageSquare className="h-4 w-4" /> {notifying === 'whatsapp' ? 'Opening…' : 'WhatsApp shift details'}
+                </button>
+                <button className={btnGhost} disabled={!!notifying}
+                  onClick={() => notifyWorker(selShift, 'email')}>
+                  <Mail className="h-4 w-4" /> {notifying === 'email' ? 'Opening…' : 'Email'}
+                </button>
+              </div>
+              {notifyErr && <p className="mt-2 text-xs font-medium text-red-600">{notifyErr}</p>}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Book shift modal */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Book Shift">
