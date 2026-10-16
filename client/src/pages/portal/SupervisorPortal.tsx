@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { CalendarDays, CheckCircle2, ClipboardList, Mail, MessageSquare, UserCheck } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ClipboardList, Mail, MessageSquare, RefreshCcw, UserCheck } from 'lucide-react';
 import clsx from 'clsx';
 import { api, ApiError } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
@@ -188,6 +188,12 @@ function SiteRequests() {
     api.get<SiteRequest[]>('/portal/client/requests').then(setRows).catch(() => setRows([]));
   }, []);
   useEffect(load, [load]);
+  // refetch when the tab regains focus — workers may accept offers while the page sits open
+  useEffect(() => {
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [load]);
 
   if (!rows) return <Spinner />;
   const open = rows.filter((r) => r.status === 'pending' && +r.filled_count < r.qty);
@@ -205,7 +211,8 @@ function SiteRequests() {
       )}
 
       <Card>
-        <CardHeader title="Requests needing cover" subtitle="Logged by your site — allocate a worker or leave it to the office" />
+        <CardHeader title="Requests needing cover" subtitle="Logged by your site — allocate a worker or leave it to the office"
+          action={<button className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300/80 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white" onClick={load}><RefreshCcw className="h-3.5 w-3.5" /> Refresh</button>} />
         {!open.length ? (
           <EmptyState icon={<ClipboardList className="h-5 w-5" />} title="Nothing waiting" hint="New requests from your site appear here." />
         ) : (
@@ -223,7 +230,13 @@ function SiteRequests() {
                     {r.individual_name && ` · for ${r.individual_name}`}
                   </p>
                   {r.notes && <p className="mt-0.5 text-[11px] text-slate-400">{r.notes}</p>}
-                  {+r.filled_count > 0 && <p className="mt-0.5 text-xs text-emerald-600">{r.filled_count}/{r.qty} filled{r.filled_by ? ` — ${r.filled_by}` : ''}</p>}
+                  {+r.filled_count > 0 && (
+                    <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100/80 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {+r.filled_count >= r.qty ? 'Fully covered' : `${r.filled_count} of ${r.qty} covered`}
+                      {r.filled_by ? ` — ${r.filled_by}` : ''}
+                    </p>
+                  )}
                 </div>
                 <button className={btnPrimary} onClick={() => setAllocFor(r)}>
                   <UserCheck className="h-4 w-4" /> Allocate worker
