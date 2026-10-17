@@ -7,17 +7,22 @@ import assert from 'node:assert/strict';
 import app from '../app.js';
 import { query, pool } from '../db.js';
 import { hashPassword } from '../lib/auth.js';
-import { setSetting } from '../lib/settings.js';
+import { getSetting, setSetting } from '../lib/settings.js';
 
 let server, base;
 const cookies = {};
+const SETTING_KEYS = ['weekend_uplift', 'night_uplift', 'bank_holiday_uplift', 'uplift_precedence',
+  'employers_ni_pct', 'bureau_fee_paye_per_shift', 'bureau_fee_ltd_per_shift'];
+const savedSettings = {};
 const fx = { clients: [], candidates: [], shifts: [], accounts: [], users: [], batches: [], requests: [], payrollRuns: [], reqs: [] };
 
 const nextDay = (dow) => { // next date with this day-of-week (0=Sun)
   const d = new Date(); d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7 || 7));
   return d.toISOString().slice(0, 10);
 };
-const SAT = nextDay(6), MON = nextDay(1);
+const SAT = nextDay(6), MON = nextDay(1), TUE = nextDay(2);
+// On Fri–Sun runs MON lands before SAT — range params must be sorted.
+const LO = SAT < MON ? SAT : MON, HI = SAT < MON ? MON : SAT;
 
 async function api(path, { method = 'GET', body, cookie = cookies.admin } = {}) {
   const res = await fetch(`${base}${path}`, {
@@ -121,7 +126,9 @@ before(async () => {
     cookies[role] = await login(email, 'sanitas123');
   }
 
-  // deterministic financial assumptions for the test run
+  // deterministic financial assumptions for the test run — originals are
+  // captured so `after` can restore them (the suite may run against a live DB)
+  for (const k of SETTING_KEYS) savedSettings[k] = await getSetting(k);
   await setSetting('weekend_uplift', 1.25);
   await setSetting('night_uplift', 1.15);
   await setSetting('bank_holiday_uplift', 1.5);
@@ -179,6 +186,10 @@ after(async () => {
     if (fx.users.length) {
       await query(`DELETE FROM messages WHERE created_by = ANY($1::int[])`, [fx.users]);
       await query(`DELETE FROM users WHERE id = ANY($1::int[])`, [fx.users]);
+    }
+    // restore settings mutated mid-run (e.g. weekend_uplift -> 2.0 in test 8)
+    for (const k of SETTING_KEYS) {
+      if (savedSettings[k] !== undefined) await setSetting(k, savedSettings[k]);
     }
   } finally {
     server.close();
@@ -319,7 +330,7 @@ test('9: payroll export separates PAYE and Ltd workers', async () => {
   ltdShift = s.body.id; fx.shifts.push(ltdShift);
   await api(`/shifts/${ltdShift}/approve`, { method: 'POST', body: { force: true } });
 
-  const p = await api(`/payroll?from=${SAT}&to=${MON}`, { cookie: cookies.finance });
+  const p = await api(`/payroll?from=${LO}&to=${HI}`, { cookie: cookies.finance });
   assert.equal(p.status, 200, JSON.stringify(p.body));
   assert.ok(p.body.paye.some((r2) => r2.shift_id === fx.shifts[0]));
   assert.ok(p.body.ltd.some((r2) => r2.shift_id === ltdShift));
@@ -328,11 +339,11 @@ test('9: payroll export separates PAYE and Ltd workers', async () => {
 
   // export PAYE run — second export of the same period finds nothing new
   const run = await api('/payroll/export', { method: 'POST', cookie: cookies.finance,
-    body: { from: SAT, to: MON, engagement: 'paye' } });
+    body: { from: LO, to: HI, engagement: 'paye' } });
   assert.equal(run.status, 201, JSON.stringify(run.body));
   fx.payrollRuns.push(run.body.run.id);
   const dup = await api('/payroll/export', { method: 'POST', cookie: cookies.finance,
-    body: { from: SAT, to: MON, engagement: 'paye' } });
+    body: { from: LO, to: HI, engagement: 'paye' } });
   assert.ok([409].includes(dup.status), 'duplicate export prevented');
   if (dup.status === 409) {
     assert.ok(dup.body.rejected.some((r2) => r2.reasons.some((x) => x.includes('already exported'))));
@@ -348,7 +359,7 @@ test('10: margin includes NI + bureau fee and flags missing inputs', async () =>
   fx.shifts.push(s.body.id);
   await api(`/shifts/${s.body.id}`, { method: 'PATCH', body: { status: 'completed' } });
 
-  const m = await api(`/margin?from=${SAT}&to=${MON}`, { cookie: cookies.finance });
+  const m = await api(`/margin?from=${LO}&to=${HI}`, { cookie: cookies.finance });
   const missing = m.body.lines.find((l) => l.shift_id === s.body.id);
   assert.equal(missing.basis, 'unavailable');
   assert.ok(missing.problems.length, 'missing inputs flagged');
@@ -530,6 +541,73 @@ test('17: supervisor sees the client request, allocates without rates, worker no
   fx.requests.push(other[0].id);
   const scoped = await api(`/portal/client/requests/${other[0].id}/eligible`, { cookie: cookies.supervisor });
   assert.equal(scoped.status, 404, 'request at another site is not reachable');
+});
+
+// ── 18. Invoicing lifecycle: generate → send → reconcile → cancel ──────────
+test('18: invoices build from approved timesheets, reconcile, and release on cancel', async () => {
+  // ltdShift is approved + uninvoiced; fx.shifts[0] was exported to payroll (paid) — not invoiceable
+  const inv = await api('/invoices', { method: 'POST', body: { client_id: fx.clientA, from: LO, to: HI, due_days: 14 } });
+  assert.equal(inv.status, 201, JSON.stringify(inv.body));
+  assert.equal(inv.body.lines.length, 1);
+  assert.equal(inv.body.lines[0].shift_id, ltdShift);
+  const { rows: linked } = await query(`SELECT invoice_id FROM shifts WHERE id = $1`, [ltdShift]);
+  assert.equal(linked[0].invoice_id, inv.body.id, 'shift linked to invoice');
+
+  // a paid (already-payrolled) shift is not pulled onto the invoice
+  assert.ok(!inv.body.lines.some((l) => l.shift_id === fx.shifts[0]));
+
+  // illegal transition refused: draft cannot jump straight to paid
+  const bad = await api(`/invoices/${inv.body.id}`, { method: 'PATCH', body: { status: 'paid' } });
+  assert.equal(bad.status, 409);
+
+  // send → appears in aged debtors; paid → leaves it
+  const sent = await api(`/invoices/${inv.body.id}`, { method: 'PATCH', body: { status: 'sent' } });
+  assert.equal(sent.status, 200, JSON.stringify(sent.body));
+  const debtors = await api('/invoices/aged-debtors', { cookie: cookies.finance });
+  assert.ok(debtors.body.some((d) => d.invoice_id === inv.body.id), 'sent invoice is a debtor');
+  const paid = await api(`/invoices/${inv.body.id}`, { method: 'PATCH', body: { status: 'paid', paid_date: MON } });
+  assert.equal(paid.status, 200);
+  const debtors2 = await api('/invoices/aged-debtors', { cookie: cookies.finance });
+  assert.ok(!debtors2.body.some((d) => d.invoice_id === inv.body.id), 'paid invoice is not a debtor');
+  assert.equal((await api(`/invoices/${inv.body.id}`, { method: 'PATCH', body: { status: 'sent' } })).status,
+    409, 'paid is terminal');
+
+  // direct status write to 'approved' is refused — must go through the gate
+  const s2 = await api('/shifts', { method: 'POST', body: {
+    candidate_id: fx.candOk, client_id: fx.clientA, shift_date: TUE,
+    start_time: '08:00', end_time: '20:00', hours: 8, shift_type: 'day',
+    pay_rate: '14.50', charge_rate: '20.00' } });
+  assert.equal(s2.status, 201, JSON.stringify(s2.body));
+  fx.shifts.push(s2.body.id);
+  const direct = await api(`/shifts/${s2.body.id}`, { method: 'PATCH', body: { timesheet_status: 'approved' } });
+  assert.equal(direct.status, 400, 'PATCH cannot approve a timesheet');
+
+  // office role cannot mark paid; finance can (after real approval)
+  const officePaid = await api(`/shifts/${s2.body.id}`, { method: 'PATCH', cookie: cookies.office,
+    body: { timesheet_status: 'paid' } });
+  assert.equal(officePaid.status, 403);
+  await api(`/shifts/${s2.body.id}`, { method: 'PATCH', body: { status: 'completed' } });
+  const ap = await api(`/shifts/${s2.body.id}/approve`, { method: 'POST', body: { force: true } });
+  assert.equal(ap.status, 200, JSON.stringify(ap.body));
+  // re-approval of a frozen timesheet is refused
+  assert.equal((await api(`/shifts/${s2.body.id}/approve`, { method: 'POST', body: { force: true } })).status, 409);
+
+  // cancel releases the shift so it can be re-invoiced
+  const inv2 = await api('/invoices', { method: 'POST', body: { client_id: fx.clientA, from: TUE, to: TUE } });
+  assert.equal(inv2.status, 201, JSON.stringify(inv2.body));
+  assert.ok(inv2.body.lines.some((l) => l.shift_id === s2.body.id));
+  const cancel = await api(`/invoices/${inv2.body.id}`, { method: 'PATCH', body: { status: 'cancelled' } });
+  assert.equal(cancel.status, 200);
+  const { rows: released } = await query(`SELECT invoice_id FROM shifts WHERE id = $1`, [s2.body.id]);
+  assert.equal(released[0].invoice_id, null, 'cancelled invoice releases its shifts');
+
+  // deleting a draft also releases; deleting a sent invoice is refused
+  const inv3 = await api('/invoices', { method: 'POST', body: { client_id: fx.clientA, from: TUE, to: TUE } });
+  assert.equal(inv3.status, 201);
+  const del = await api(`/invoices/${inv3.body.id}`, { method: 'DELETE' });
+  assert.equal(del.status, 204);
+  const gone = await api(`/invoices/${inv3.body.id}`);
+  assert.equal(gone.status, 404);
 });
 
 // ── 16. Existing features still respond ─────────────────────────────────────

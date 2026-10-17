@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { query } from '../db.js';
+import { query, pool } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { isoDate } from '../lib/dates.js';
 import { notify } from '../lib/notify.js';
@@ -116,6 +116,12 @@ r.post('/shifts/:id/approve', async (req, res, next) => {
     const { rows: cur } = await query(`SELECT * FROM shifts WHERE id = $1`, [req.params.id]);
     const shift = cur[0];
     if (!shift) return res.status(404).json({ error: 'Shift not found' });
+    if (shift.timesheet_status === 'approved') {
+      return res.status(409).json({ error: 'Timesheet is already approved — the financial snapshot is frozen' });
+    }
+    if (shift.timesheet_status === 'paid') {
+      return res.status(409).json({ error: 'Timesheet is already paid — it cannot be re-approved' });
+    }
     if (!shift.client_sig_at && !req.body?.force) {
       return res.status(409).json({ error: 'Client signature is still outstanding — approve anyway?', needs_force: true });
     }
@@ -149,6 +155,8 @@ r.get('/invoices', async (req, res, next) => {
 
 r.get('/invoices/aged-debtors', requireAccess('finance'), async (_req, res, next) => {
   try {
+    // Only issued ('sent') invoices are debt. Drafts are unissued, paid/cancelled
+    // are closed — none of those belong on a debtors report.
     const { rows } = await query(
       `SELECT cl.name AS client_name, i.id AS invoice_id, i.number, i.issue_date, i.due_date, i.subtotal,
               CASE
@@ -158,31 +166,50 @@ r.get('/invoices/aged-debtors', requireAccess('finance'), async (_req, res, next
                 ELSE '60+'
               END AS bucket
        FROM invoices i JOIN clients cl ON cl.id = i.client_id
-       WHERE i.status IN ('sent','draft') ORDER BY i.due_date NULLS LAST`);
+       WHERE i.status = 'sent' ORDER BY i.due_date NULLS LAST`);
     res.json(rows);
   } catch (e) { next(e); }
 });
 
 // Generate an invoice for a client over a period — approved timesheets only (6.10c).
+// Runs in one transaction so a failure can't leave a header without lines or
+// shifts half-linked to an invoice.
 r.post('/invoices', async (req, res, next) => {
+  const client = await pool.connect();
   try {
     const { client_id, from, to, due_days = 30, notes } = req.body || {};
     if (!client_id || !from || !to) return res.status(400).json({ error: 'client_id, from, to required' });
-    const { rows: shifts } = await query(
+    if (from > to) return res.status(400).json({ error: 'from must be on or before to' });
+
+    const { rows: cl } = await query(`SELECT id, name FROM clients WHERE id = $1`, [client_id]);
+    if (!cl[0]) return res.status(404).json({ error: 'Client not found' });
+
+    await client.query('BEGIN');
+    const { rows: shifts } = await client.query(
       `SELECT s.*, c.first_name || ' ' || c.last_name AS worker_name
        FROM shifts s JOIN candidates c ON c.id = s.candidate_id
        WHERE s.client_id = $1 AND s.shift_date BETWEEN $2 AND $3
          AND s.timesheet_status = 'approved' AND s.invoice_id IS NULL
-       ORDER BY s.shift_date`, [client_id, from, to]);
-    if (!shifts.length) return res.status(400).json({ error: 'No approved, uninvoiced timesheets in that period' });
+       ORDER BY s.shift_date
+       FOR UPDATE OF s`, [client_id, from, to]);
+    if (!shifts.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No approved, uninvoiced timesheets in that period' });
+    }
 
     // Snapshot is written at approval; backfill for any legacy approved shift.
     let subtotalPence = 0;
     const lines = [];
     for (const s of shifts) {
       if (s.charge_amount_pence == null) await snapshotShift(s.id);
-      const { rows: fresh } = await query(`SELECT * FROM shifts WHERE id = $1`, [s.id]);
+      const { rows: fresh } = await client.query(`SELECT * FROM shifts WHERE id = $1`, [s.id]);
       const f = fresh[0];
+      if (f.charge_amount_pence == null) {
+        await client.query('ROLLBACK');
+        return res.status(422).json({
+          error: `Shift #${s.id} (${s.worker_name}, ${isoDate(s.shift_date)}) has no chargeable amount — set pay/charge rates and re-approve`,
+        });
+      }
       const amountPence = +f.charge_amount_pence;
       subtotalPence += amountPence;
       const hours = f.paid_hours;
@@ -193,35 +220,103 @@ r.post('/invoices', async (req, res, next) => {
     }
     const subtotal = fromPence(subtotalPence);
 
-    const { rows: seq } = await query(`SELECT COUNT(*) AS n FROM invoices`);
-    const number = `INV-${new Date().getFullYear()}-${String(+seq[0].n + 1).padStart(4, '0')}`;
-    const { rows: inv } = await query(
+    const year = new Date().getFullYear();
+    const { rows: seq } = await client.query(
+      `SELECT COALESCE(MAX(CAST(NULLIF(split_part(number, '-', 3), '') AS int)), 0) + 1 AS n
+       FROM invoices WHERE number LIKE $1`, [`INV-${year}-%`]);
+    const number = `INV-${year}-${String(seq[0].n).padStart(4, '0')}`;
+    const { rows: inv } = await client.query(
       `INSERT INTO invoices (client_id, number, status, issue_date, due_date, subtotal, notes, created_by)
        VALUES ($1,$2,'draft',CURRENT_DATE, CURRENT_DATE + $3::int, $4, $5, $6) RETURNING *`,
       [client_id, number, +due_days, subtotal, notes || null, req.account?.userId ?? null]);
     for (const l of lines) {
-      await query(`INSERT INTO invoice_lines (invoice_id, shift_id, description, hours, rate, amount)
+      await client.query(`INSERT INTO invoice_lines (invoice_id, shift_id, description, hours, rate, amount)
                    VALUES ($1,$2,$3,$4,$5,$6)`, [inv[0].id, l.shift_id, l.description, l.hours, l.rate, l.amount]);
-      await query(`UPDATE shifts SET invoice_id = $1 WHERE id = $2`, [inv[0].id, l.shift_id]);
+      await client.query(`UPDATE shifts SET invoice_id = $1 WHERE id = $2`, [inv[0].id, l.shift_id]);
     }
+    await client.query('COMMIT');
     await audit(req, 'invoice.created', 'invoice', inv[0].id, { client_id, number, subtotal, lines: lines.length });
     res.status(201).json({ ...inv[0], lines });
-  } catch (e) { next(e); }
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally {
+    client.release();
+  }
 });
+
+const INVOICE_TRANSITIONS = {
+  draft: ['sent', 'cancelled'],
+  sent: ['paid', 'cancelled'],
+  paid: [],
+  cancelled: [],
+};
 
 r.patch('/invoices/:id', async (req, res, next) => {
   try {
-    const { status } = req.body || {};
+    const { status, paid_date } = req.body || {};
+    const { rows: cur } = await query(
+      `SELECT i.*, cl.name AS client_name, cl.billing_email FROM invoices i JOIN clients cl ON cl.id = i.client_id WHERE i.id = $1`,
+      [req.params.id]);
+    const inv = cur[0];
+    if (!inv) return res.status(404).json({ error: 'Not found' });
     if (!['draft', 'sent', 'paid', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    if (status === inv.status) return res.json(inv);
+    if (!INVOICE_TRANSITIONS[inv.status].includes(status)) {
+      return res.status(409).json({ error: `Cannot move an invoice from '${inv.status}' to '${status}'` });
+    }
+
     const sets = [`status = $1`];
     const params = [status];
     if (status === 'sent') sets.push(`sent_at = now()`);
-    if (status === 'paid') sets.push(`paid_at = now()`);
+    if (status === 'paid') {
+      if (paid_date && !/^\d{4}-\d{2}-\d{2}$/.test(paid_date)) {
+        return res.status(400).json({ error: 'paid_date must be YYYY-MM-DD' });
+      }
+      params.push(paid_date || null);
+      sets.push(`paid_at = COALESCE($${params.length}::date, now())`);
+    }
     params.push(req.params.id);
-    const { rows } = await query(`UPDATE invoices SET ${sets.join(', ')} WHERE id = $2 RETURNING *`, params);
-    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
-    await audit(req, `invoice.${status}`, 'invoice', +req.params.id);
-    res.json(rows[0]);
+    const { rows } = await query(`UPDATE invoices SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
+
+    let mailto_link = null;
+    if (status === 'cancelled') {
+      // Release the shifts so they can be re-invoiced; lines stay on the
+      // cancelled invoice as the audit trail.
+      await query(`UPDATE shifts SET invoice_id = NULL WHERE invoice_id = $1`, [inv.id]);
+    }
+    if (status === 'sent' && inv.billing_email) {
+      const { rows: lines } = await query(`SELECT description, amount FROM invoice_lines WHERE invoice_id = $1 ORDER BY id`, [inv.id]);
+      const body =
+        `Dear ${inv.client_name},\n\nPlease find invoice ${inv.number} for ${lines.length} shift${lines.length === 1 ? '' : 's'}, ` +
+        `due ${isoDate(rows[0].due_date)}.\n\n` +
+        lines.map((l) => `• ${l.description} — £${l.amount}`).join('\n') +
+        `\n\nTotal: £${rows[0].subtotal}\n\nThank you,\nSanitas Medical Recruitment`;
+      const msg = await notify({
+        channel: 'email', toName: inv.client_name, toContact: inv.billing_email,
+        subject: `Invoice ${inv.number} — Sanitas Medical Recruitment`, body,
+        entityType: 'invoice', entityId: inv.id, createdBy: req.account?.userId,
+      });
+      mailto_link = msg.mailto_link;
+    }
+    await audit(req, `invoice.${status}`, 'invoice', +req.params.id,
+      status === 'paid' ? { paid_date: paid_date || null } : undefined);
+    res.json({ ...rows[0], mailto_link });
+  } catch (e) { next(e); }
+});
+
+// Draft invoices can be removed entirely (lines cascade; shift links release
+// via ON DELETE SET NULL). Issued invoices must be cancelled, not deleted.
+r.delete('/invoices/:id', async (req, res, next) => {
+  try {
+    const { rows: cur } = await query(`SELECT id, status, number FROM invoices WHERE id = $1`, [req.params.id]);
+    if (!cur[0]) return res.status(404).json({ error: 'Not found' });
+    if (cur[0].status !== 'draft') {
+      return res.status(409).json({ error: 'Only draft invoices can be deleted — cancel issued invoices instead' });
+    }
+    await query(`DELETE FROM invoices WHERE id = $1`, [req.params.id]);
+    await audit(req, 'invoice.deleted', 'invoice', +req.params.id, { number: cur[0].number });
+    res.status(204).end();
   } catch (e) { next(e); }
 });
 
@@ -254,8 +349,21 @@ async function payrollCandidates(from, to, engagement) {
      ORDER BY c.last_name, s.shift_date`, [from, to, engagement]);
   const accepted = [], rejected = [];
   for (const s of rows) {
+    // Legacy approved/paid shifts may predate the snapshot write; backfill so
+    // they are payable and margin can report them as 'actual'.
+    if (s.pay_amount_pence == null) {
+      try {
+        const fin = await snapshotShift(s.shift_id);
+        s.pay_amount_pence = fin.pay_amount_pence;
+        s.paid_hours = fin.paid_hours;
+        s.uplift_rule = fin.uplift_rule;
+        s.uplift_multiplier = fin.uplift_multiplier;
+        s.engagement_type_at_approval = fin.engagement_type_at_approval;
+      } catch { /* leave null — rejected below with a reason */ }
+    }
     const reasons = [];
     if (s.payroll_export_id) reasons.push(`already exported in run #${s.payroll_export_id}`);
+    else if (s.timesheet_status === 'paid') reasons.push('marked paid manually — no payroll run recorded');
     if (s.pay_amount_pence == null) reasons.push('no approved financial snapshot');
     if (!s.payroll_ref) reasons.push('worker has no payroll reference');
     if (!s.approved_at) reasons.push('timesheet not approved by office');

@@ -121,7 +121,7 @@ export default function CandidateDetail() {
   const [clients, setClients] = useState<Client[]>([]);
 
   const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState({ status: '', email: '', phone: '', pay_min: '', pay_max: '', preferred_shift: '', owner_id: '', notes: '' });
+  const [editForm, setEditForm] = useState({ status: '', email: '', phone: '', pay_min: '', pay_max: '', preferred_shift: '', owner_id: '', notes: '', engagement_type: 'paye' as 'paye' | 'ltd', payroll_ref: '' });
   const [saving, setSaving] = useState(false);
 
   const [editingNotes, setEditingNotes] = useState(false);
@@ -179,6 +179,8 @@ export default function CandidateDetail() {
       preferred_shift: c.preferred_shift ?? '',
       owner_id: c.owner_id ? String(c.owner_id) : '',
       notes: c.notes ?? '',
+      engagement_type: c.engagement_type ?? 'paye',
+      payroll_ref: c.payroll_ref ?? '',
     });
     setShowEdit(true);
   };
@@ -195,6 +197,8 @@ export default function CandidateDetail() {
         preferred_shift: editForm.preferred_shift || null,
         owner_id: editForm.owner_id ? +editForm.owner_id : null,
         notes: editForm.notes || null,
+        engagement_type: editForm.engagement_type,
+        payroll_ref: editForm.payroll_ref || null,
       });
       setShowEdit(false);
       load();
@@ -421,6 +425,8 @@ export default function CandidateDetail() {
               <DetailRow label="Pay range" value={payRange} />
               <DetailRow label="Preferred shift" value={c.preferred_shift ? fmtStatus(c.preferred_shift) : '—'} />
               <DetailRow label="Employment" value={c.employment_pref ? fmtStatus(c.employment_pref) : '—'} />
+              <DetailRow label="Engagement" value={c.engagement_type === 'ltd' ? 'Limited company' : 'PAYE'} />
+              <DetailRow label="Payroll ref" value={c.payroll_ref ?? '—'} />
               <DetailRow label="Travel" value={c.travel_miles != null ? `${c.travel_miles} miles` : '—'} />
               <DetailRow label="Transport" value={c.has_transport ? 'Yes' : 'No'} />
               <DetailRow label="Source" value={c.source ?? '—'} />
@@ -940,6 +946,15 @@ export default function CandidateDetail() {
           </Field>
           <Field label="Pay max (£/hr)">
             <input type="number" step="0.5" min="0" className={inputCls} value={editForm.pay_max} onChange={(e) => setEditForm({ ...editForm, pay_max: e.target.value })} />
+          </Field>
+          <Field label="Engagement">
+            <select className={inputCls} value={editForm.engagement_type} onChange={(e) => setEditForm({ ...editForm, engagement_type: e.target.value as 'paye' | 'ltd' })}>
+              <option value="paye">PAYE</option>
+              <option value="ltd">Limited company</option>
+            </select>
+          </Field>
+          <Field label="Payroll ref">
+            <input className={inputCls} value={editForm.payroll_ref} onChange={(e) => setEditForm({ ...editForm, payroll_ref: e.target.value })} placeholder="Bureau reference — required for payroll export" />
           </Field>
           <Field label="Owner" full>
             <select className={inputCls} value={editForm.owner_id} onChange={(e) => setEditForm({ ...editForm, owner_id: e.target.value })}>

@@ -149,7 +149,7 @@ r.post('/', async (req, res, next) => {
 r.patch('/:id', async (req, res, next) => {
   try {
     const allowed = ['first_name','last_name','email','phone','role','nmc_pin','address','town','postcode','status','pay_min','pay_max','preferred_shift','employment_pref','travel_miles','has_transport','source','rating','tags','owner_id','notes','last_worked_at',
-      'engagement_type','next_of_kin_name','next_of_kin_phone','rtw_status','rtw_expiry','driving','uniform_size','willing_client_ids','custom_fields','suspended','first_choice_since'];
+      'engagement_type','next_of_kin_name','next_of_kin_phone','rtw_status','rtw_expiry','driving','uniform_size','willing_client_ids','custom_fields','suspended','first_choice_since','payroll_ref','bank_details'];
     const sets = [], params = [];
     for (const k of allowed) {
       if (k in req.body) { params.push(req.body[k]); sets.push(`${k} = $${params.length}`); }

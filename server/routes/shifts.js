@@ -44,7 +44,8 @@ r.get('/timesheets', async (_req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT s.*, c.first_name || ' ' || c.last_name AS candidate_name, cl.name AS client_name,
-        (s.hours * s.pay_rate) AS pay_amount, (s.hours * s.charge_rate) AS charge_amount
+        COALESCE(s.pay_amount_pence / 100.0, s.hours * s.pay_rate) AS pay_amount,
+        COALESCE(s.charge_amount_pence / 100.0, s.hours * s.charge_rate) AS charge_amount
        FROM shifts s
        JOIN candidates c ON c.id = s.candidate_id
        JOIN clients cl ON cl.id = s.client_id
@@ -138,6 +139,27 @@ r.patch('/:id', async (req, res, next) => {
       const lockedFields = ['shift_date','start_time','end_time','hours','pay_rate','charge_rate','actual_start','actual_end','actual_hours'];
       if (lockedFields.some((f) => f in req.body)) {
         return res.status(423).json({ error: 'Timesheet is signed and locked — raise a query instead' });
+      }
+    }
+    // 6.10c — 'approved' must go through POST /:id/approve (signature gate +
+    // frozen financial snapshot); 'queried' through POST /:id/query. Direct
+    // patches may only move between the non-approved statuses.
+    if ('timesheet_status' in req.body) {
+      const ts = req.body.timesheet_status;
+      if (!['not_submitted', 'submitted', 'paid'].includes(ts)) {
+        return res.status(400).json({
+          error: ts === 'approved'
+            ? 'Use the approve action — approval checks signatures and freezes the financial snapshot'
+            : `Cannot set timesheet_status to '${ts}' directly`,
+        });
+      }
+      if (ts === 'paid') {
+        if (!['admin', 'finance'].includes(req.account?.accessRole)) {
+          return res.status(403).json({ error: 'Finance/admin role required to mark a timesheet paid' });
+        }
+        if (existing.timesheet_status !== 'approved' && existing.timesheet_status !== 'paid') {
+          return res.status(409).json({ error: 'Only approved timesheets can be marked paid — approve it first' });
+        }
       }
     }
     const allowed = ['shift_date','start_time','end_time','hours','shift_type','pay_rate','charge_rate','status','timesheet_status',

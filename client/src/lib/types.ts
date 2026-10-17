@@ -27,6 +27,7 @@ export interface Candidate {
   preferred_shift: string | null;
   employment_pref: string | null;
   engagement_type: 'paye' | 'ltd';
+  payroll_ref: string | null;
   travel_miles: number | null;
   has_transport: boolean;
   next_of_kin_name: string | null;

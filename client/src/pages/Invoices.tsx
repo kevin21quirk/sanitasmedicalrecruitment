@@ -39,9 +39,14 @@ export default function Invoices() {
     api.get<Client[]>('/clients').then(setClients).catch(() => {});
   }, [load]);
 
-  const setStatus = async (id: number, status: string) => {
-    await api.patch(`/invoices/${id}`, { status });
-    load();
+  const setStatus = async (id: number, status: string, extra?: Record<string, unknown>) => {
+    try {
+      const res = await api.patch<Invoice & { mailto_link?: string }>(`/invoices/${id}`, { status, ...extra });
+      if (res.mailto_link) window.open(res.mailto_link, '_blank');
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed');
+    }
   };
   const openDetail = async (id: number) => setDetail(await api.get(`/invoices/${id}`));
 
@@ -99,7 +104,13 @@ export default function Invoices() {
       {tab === 'margin' && (canFinance ? <Margin /> : <NoAccess />)}
 
       {newOpen && <NewInvoice clients={clients} onClose={() => setNewOpen(false)} onSaved={() => { setNewOpen(false); load(); }} />}
-      {detail && <InvoiceDetail inv={detail} onClose={() => setDetail(null)} />}
+      {detail && (
+        <InvoiceDetail
+          inv={detail}
+          onClose={() => setDetail(null)}
+          onChanged={() => { load(); openDetail(detail.id); }}
+        />
+      )}
     </div>
   );
 }
@@ -114,13 +125,13 @@ function NoAccess() {
 }
 
 function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ client_id: '', from: '', to: '', due_days: 30 });
+  const [f, setF] = useState({ client_id: '', from: '', to: '', due_days: 30, notes: '' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const save = async () => {
     setSaving(true); setErr('');
     try {
-      await api.post('/invoices', { ...f, client_id: +f.client_id });
+      await api.post('/invoices', { ...f, client_id: +f.client_id, notes: f.notes || undefined });
       onSaved();
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed'); setSaving(false); }
   };
@@ -142,6 +153,8 @@ function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose:
             <input type="date" className={inputCls} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></label>
           <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Payment terms (days)</span>
             <input type="number" className={inputCls} value={f.due_days} onChange={(e) => setF({ ...f, due_days: +e.target.value })} /></label>
+          <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
+            <input className={inputCls} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. October week 2 invoice" /></label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button className={btnGhost} onClick={onClose}>Cancel</button>
@@ -152,7 +165,34 @@ function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose:
   );
 }
 
-function InvoiceDetail({ inv, onClose }: { inv: Invoice & { lines: any[]; client_address?: string; billing_email?: string }; onClose: () => void }) {
+function InvoiceDetail({ inv, onClose, onChanged }: {
+  inv: Invoice & { lines: any[]; client_address?: string; billing_email?: string; notes?: string | null };
+  onClose: () => void; onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [paidDate, setPaidDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const act = async (status: string, extra?: Record<string, unknown>) => {
+    setBusy(true); setErr('');
+    try {
+      const res = await api.patch<{ mailto_link?: string }>(`/invoices/${inv.id}`, { status, ...extra });
+      if (res.mailto_link) window.open(res.mailto_link, '_blank');
+      onChanged();
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed'); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    if (!window.confirm(`Delete draft invoice ${inv.number}? Its shifts become invoiceable again.`)) return;
+    setBusy(true); setErr('');
+    try { await api.del(`/invoices/${inv.id}`); onChanged(); onClose(); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Failed'); setBusy(false); }
+  };
+  const cancel = () => {
+    if (!window.confirm(`Cancel invoice ${inv.number}? The shifts will be released for re-invoicing.`)) return;
+    void act('cancelled');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={onClose}>
       <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
@@ -160,9 +200,12 @@ function InvoiceDetail({ inv, onClose }: { inv: Invoice & { lines: any[]; client
           <div>
             <h2 className="font-display text-lg font-semibold">{inv.number}</h2>
             <p className="text-xs text-slate-500">{inv.client_name} · issued {fmtDate(inv.issue_date)} · due {fmtDate(inv.due_date)}</p>
+            {inv.status === 'paid' && inv.paid_at && <p className="mt-0.5 text-xs text-emerald-600">Paid {fmtDate(inv.paid_at)}</p>}
+            {inv.billing_email && <p className="mt-0.5 text-xs text-slate-400">Bills to {inv.billing_email}</p>}
           </div>
           <Badge value={inv.status} />
         </div>
+        {inv.notes && <p className="mt-2 rounded-lg bg-slate-900/[0.035] px-3 py-2 text-xs text-slate-600">{inv.notes}</p>}
         <table className="mt-4 w-full text-sm">
           <thead><tr className="border-b border-slate-200/60 text-left text-[10px] uppercase tracking-wide text-slate-400">
             <th className="py-2">Description</th><th>Hours</th><th>Rate</th><th className="text-right">Amount</th>
@@ -182,9 +225,30 @@ function InvoiceDetail({ inv, onClose }: { inv: Invoice & { lines: any[]; client
             <td className="text-right text-sm font-bold text-ink">{gbp2(inv.subtotal)}</td>
           </tr></tfoot>
         </table>
-        <div className="mt-4 flex justify-end gap-2">
-          <button className={btnGhost} onClick={onClose}>Close</button>
+        {err && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{err}</p>}
+        {inv.status === 'sent' && (
+          <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+            Payment received on
+            <input type="date" className={clsx(inputCls, 'w-auto')} value={paidDate} onChange={(e) => setPaidDate(e.target.value)} />
+          </label>
+        )}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          {inv.status === 'draft' && (
+            <>
+              <button className={btnGhost} disabled={busy} onClick={remove}>Delete draft</button>
+              <button className={btnPrimary} disabled={busy} onClick={() => act('sent')}>
+                {inv.billing_email ? 'Send to client' : 'Mark sent'}
+              </button>
+            </>
+          )}
+          {inv.status === 'sent' && (
+            <button className={btnPrimary} disabled={busy} onClick={() => act('paid', { paid_date: paidDate })}>Mark paid</button>
+          )}
+          {(inv.status === 'draft' || inv.status === 'sent') && (
+            <button className={btnGhost} disabled={busy} onClick={cancel}>Cancel invoice</button>
+          )}
           <button className={btnGhost} onClick={() => window.print()}>Print / PDF</button>
+          <button className={btnGhost} onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -355,7 +419,7 @@ function Margin() {
               {[['Charge', data.totals.charge], ['Pay', data.totals.pay], ['Employer NI', data.totals.ni], ['Bureau fees', data.totals.fee], ['Margin', data.totals.margin], ['Margin %', data.totals.margin_pct ? `${data.totals.margin_pct}%` : '—']].map(([k, v]) => (
                 <div key={k as string} className="rounded-xl bg-slate-900/[0.035] px-3 py-2">
                   <p className="text-[10px] uppercase tracking-wide text-slate-400">{k}</p>
-                  <p className={clsx('text-sm font-bold', k === 'Margin' ? 'text-emerald-600' : 'text-ink')}>{gbp2(v) === 'NaN' ? v : v}</p>
+                  <p className={clsx('text-sm font-bold', k === 'Margin' ? 'text-emerald-600' : 'text-ink')}>{k === 'Margin %' ? v : gbp2(v)}</p>
                 </div>
               ))}
             </div>
