@@ -6,7 +6,7 @@ import {
 import type { ReactNode } from 'react';
 import {
   Stage, Stat, Row, NameBar, Chip, Stamp, FlowArrow, Panel, Bar, Count,
-  delay, Ticker, Spark, KanbanMove, FillBar, CycleChip,
+  delay, Ticker, Spark, KanbanMove, FillBar, CycleChip, Bubble,
 } from './visuals';
 
 export interface Scene { title: string; caption: string; visual: ReactNode }
@@ -37,6 +37,15 @@ export const MODULES: Module[] = [
         caption: 'The dashboard opens on real-time totals — workers on the books, care homes you serve, this month\'s revenue and margin — so the business position is never more than a glance away.',
         visual: (
           <Stage caption="KPI tiles count themselves up from the live database — revenue and margin included.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '2.2rem' }}>
+              These tiles pull live totals — no manual entry
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '9rem', right: '2.2rem' }}>
+              The trend line draws itself from real invoice data
+            </Bubble>
+            <Bubble i={3} step={3} tail="top" style={{ bottom: '1rem', left: '2.2rem' }}>
+              The ticker streams the latest activity across the system
+            </Bubble>
             <div className="grid grid-cols-4 gap-3">
               <Stat i={0} label="Active workers" value={<Count to={47} />} />
               <Stat i={1} label="Care homes" value={<Count to={7} />} />
@@ -59,6 +68,12 @@ export const MODULES: Module[] = [
         caption: 'Every client request travels through seven colour-coded stages. The dashboard strip shows live counts at each stage — click any one to jump to the board filtered to exactly that work.',
         visual: (
           <Stage caption="Watch a request travel: blue is new, amber needs chasing, emerald is done and invoiced.">
+            <Bubble i={1} step={1} tail="top" style={{ top: '5.2rem', left: '30%' }}>
+              The card moves itself — no status is ever hand-edited
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '9rem', right: '2.2rem' }}>
+              Red = urgent. It stays visible until someone acts on it
+            </Bubble>
             <KanbanMove cols={PIPE_FULL} card={<span>Chestnut Grange · Night ×2</span>} dwell={1100} />
             <div className="mt-8 space-y-2">
               <Row i={1}><span className="text-xs text-white">Oaks Lodge · urgent day cover</span><Chip tone="red" blink>Urgent</Chip></Row>
@@ -73,6 +88,12 @@ export const MODULES: Module[] = [
         caption: 'Below the pipeline: every shift booked this week, tasks due, and compliance alerts — anything expiring or missing is surfaced before it becomes a problem.',
         visual: (
           <Stage caption="Shifts this week, tasks due, and compliance warnings — nothing hides.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '2.2rem' }}>
+              Every shift booked this week, with its status
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.2rem', right: '2.2rem' }}>
+              Anything needing attention surfaces here first
+            </Bubble>
             <div className="grid grid-cols-3 gap-3">
               <Panel title="This week" className="col-span-2">
                 <Row i={0}><NameBar name="Chloe Stan" sub="Chestnut Grange · Mon night" /><Chip tone="teal">Booked</Chip></Row>
@@ -99,6 +120,12 @@ export const MODULES: Module[] = [
         caption: 'Each nurse, HCA and support worker gets a living profile — contact details, pay expectations, payroll reference, bank details, photo and full compliance file. Everything payroll and invoicing needs is already on the record.',
         visual: (
           <Stage caption="One record per worker — searchable, filterable, always up to date.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '2.2rem' }}>
+              Click any worker to open their full record
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '4.5rem', right: '2.2rem' }}>
+              Payroll ref, bank & compliance — all in one place
+            </Bubble>
             <div className="space-y-2">
               <Row i={0}><NameBar name="Chloe Stan" sub="Registered Nurse · SAN-001" /><Chip tone="emerald" i={1}>Compliant</Chip></Row>
               <Row i={1}><NameBar name="Mary Begum" sub="HCA · SAN-005" /><Chip tone="emerald" i={2}>Compliant</Chip></Row>
@@ -119,6 +146,12 @@ export const MODULES: Module[] = [
         caption: 'The ring on each profile is the worker\'s compliance score — it drops the moment a required document lapses and climbs back as staff fix gaps.',
         visual: (
           <Stage caption="The compliance ring recalculates itself every time a document changes.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '3.8rem', left: '2rem' }}>
+              The ring fills itself as documents are verified
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '9rem', right: '2.2rem' }}>
+              Amber bar = expiring soon — fix it before it drops
+            </Bubble>
             <div className="flex items-center gap-6">
               <div className="relative h-28 w-28">
                 <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
@@ -143,6 +176,12 @@ export const MODULES: Module[] = [
         caption: 'New workers self-register through a public link — drafting documents and details themselves — and land in the pipeline for office review instead of an inbox.',
         visual: (
           <Stage caption="Public registration link → worker uploads their own docs → office reviews.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '5rem', left: '8%' }}>
+              The worker fills this in — not you
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '5rem', right: '8%' }}>
+              Lands in the review queue with docs attached
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="flex-1" title="Worker's phone">
                 <p className="text-[11px] text-white/70">Registration form</p>
@@ -168,6 +207,12 @@ export const MODULES: Module[] = [
         caption: 'Every client holds contacts, billing email, address — and its own compliance requirements layered on top of the agency baseline. Bookings check both automatically.',
         visual: (
           <Stage caption="Baseline + site-specific requirements — enforced on every allocation.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '5.5rem', left: '8%' }}>
+              Every worker needs these — no exceptions
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '5.5rem', right: '8%' }}>
+              This home adds its own rules on top
+            </Bubble>
             <Row i={0}><NameBar name="Chestnut Grange" sub="Colchester · Nursing" /><Chip tone="sky">Active client</Chip></Row>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Panel title="Agency baseline"><p className="text-[10px] leading-relaxed text-white/60">DBS Enhanced · Right to Work · Passport/ID · Mandatory Training · NMC for nurses</p></Panel>
@@ -184,6 +229,12 @@ export const MODULES: Module[] = [
         caption: 'Homes raise requests through their own portal — date, shift type, role, quantity — and they land on your pipeline board instantly. No phone tag, no lost emails.',
         visual: (
           <Stage caption="Client portal → your pipeline board. Structured requests in, not scribbled notes.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.8rem', left: '6%' }}>
+              The home types this themselves in their portal
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.8rem', right: '6%' }}>
+              …and it lands here instantly, already structured
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="w-52" title="Client portal" scan>
                 <p className="text-[11px] text-white/70">"2 × night RN, 20–21 Oct"</p>
@@ -206,6 +257,12 @@ export const MODULES: Module[] = [
         caption: 'Invoices, shifts, contacts and request history live on the client record — so when a home calls, you have the whole relationship in front of you.',
         visual: (
           <Stage caption="Invoices, rotas and contacts — the whole client relationship on one page.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4rem', left: '2.2rem' }}>
+              Live fill rate and volume — per client
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '4rem', right: '2.2rem' }}>
+              Their invoices sit here too — paid or outstanding
+            </Bubble>
             <div className="grid grid-cols-3 gap-2">
               <Panel title="Shifts"><Stat label="This month" value={<Count to={34} />} i={0} /></Panel>
               <Panel title="Invoiced"><Stat label="Outstanding" value={<Count to={2} />} i={1} /></Panel>
@@ -226,6 +283,12 @@ export const MODULES: Module[] = [
         caption: 'Requests sit in colour-coded columns by their furthest outstanding stage — New, Offers out, Part-filled, Booked — so the room can see at a glance what needs doing.',
         visual: (
           <Stage caption="Cards physically move as work progresses — no status ever goes stale.">
+            <Bubble i={1} step={1} tail="top" style={{ top: '5rem', left: '12%' }}>
+              Every request is a card in one of these columns
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ top: '8.5rem', right: '10%' }}>
+              Colours tell you the stage before you even read it
+            </Bubble>
             <KanbanMove cols={PIPE} card={<span>Ferndale Court · Day ×1</span>} dwell={1200} />
             <div className="mt-8 grid grid-cols-2 gap-2 text-[10px] text-white/60">
               <p className="tr-rise" style={delay(1)}>▸ Cards show fill progress (1/7), offers out, worker names</p>
@@ -241,6 +304,12 @@ export const MODULES: Module[] = [
         caption: 'Open a request and the allocation drawer lists workers who are free, compliant and closest — with travel distance, continuity and first-choice flags. You pick; the system never auto-assigns.',
         visual: (
           <Stage caption="Human allocation: the drawer ranks eligible workers — you decide who gets the offer.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '8%' }}>
+              Only free + compliant workers appear — ranked by distance & continuity
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '8rem', right: '8%' }}>
+              You always choose. The system suggests, never assigns
+            </Bubble>
             <Panel title="Eligible for Chestnut Grange · Night" scan>
               <div className="space-y-1.5">
                 <Row i={0}><NameBar name="Chloe Stan" sub="8 min away" /><Chip tone="emerald" i={1}>First choice</Chip></Row>
@@ -257,6 +326,15 @@ export const MODULES: Module[] = [
         caption: 'Send the offer by WhatsApp or email from the outbox. When the worker accepts in their portal, the shift is created, the calendar updates and the pipeline card turns teal — all in one motion.',
         visual: (
           <Stage caption="One acceptance creates the shift, updates the calendar and moves the pipeline card.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '6%' }}>
+              Worker taps Accept on their phone
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '4.5rem', left: '42%' }}>
+              The shift writes itself to the calendar
+            </Bubble>
+            <Bubble i={3} step={3} tail="left" style={{ top: '4.5rem', right: '4%' }}>
+              …and the card turns teal. Done.
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="flex-1" title="Worker's phone"><p className="text-[10px] text-white/60">Night · Chestnut Grange</p><Chip tone="emerald" i={0} pulse>Accept</Chip></Panel>
               <FlowArrow i={1} />
@@ -278,6 +356,12 @@ export const MODULES: Module[] = [
         caption: 'Export your Neuven allocations to CSV and drop it in. Every row is validated live — client matched, date parsed, shift type normalised — before a single request is created.',
         visual: (
           <Stage caption="Preview shows exactly what each row will do — green goes in, red explains why not.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '6%' }}>
+              Valid rows show what they'll create
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '8.5rem', right: '6%' }}>
+              Problem rows name their exact issue — nothing is silent
+            </Bubble>
             <Panel title="Import preview" scan>
               <div className="space-y-1.5">
                 <Row i={0}><span className="text-xs text-white">NV-9001 · Chestnut Grange · 20 Oct · Night</span><Chip tone="emerald" i={1}>Import</Chip></Row>
@@ -294,6 +378,15 @@ export const MODULES: Module[] = [
         caption: 'Committed rows become real pending requests, tagged with their Neuven reference — they appear on the board as New and go through the same offer-and-allocate flow as anything else.',
         visual: (
           <Stage caption="Imported jobs are first-class requests — allocate them exactly like internal ones.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '5%' }}>
+              Neuven's export — references stay attached
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.5rem', right: '5%' }}>
+              Lands as a normal request on the board
+            </Bubble>
+            <Bubble i={3} step={3} tail="top" style={{ bottom: '4.5rem', left: '30%' }}>
+              Same ref can't import twice — deduped
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="w-44" title="Neuven CSV"><p className="text-xs text-white/70">NV-9001 · Night ×2</p><p className="mt-1 text-xs text-white/70">NV-9002 · Long day</p></Panel>
               <FlowArrow i={1} />
@@ -310,6 +403,12 @@ export const MODULES: Module[] = [
         caption: 'Neuven don\'t publish a public API — so the connection profile stores endpoint and credentials ready for the day access is agreed. Test connection probes it live so the plumbing is proven, not promised.',
         visual: (
           <Stage caption="A real probe against the saved endpoint — honest status, never theatre.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '8%' }}>
+              Endpoint & credentials saved server-side
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '5.5rem', left: '30%' }}>
+              Test connection really probes it — live result, not a mock
+            </Bubble>
             <Panel title="Connection profile">
               <div className="space-y-1.5 text-[11px] text-white/70">
                 <p className="tr-rise" style={delay(0)}>Endpoint: <b className="text-white">api.neuven…</b></p>
@@ -332,6 +431,18 @@ export const MODULES: Module[] = [
         caption: 'The worker submits hours, the site supervisor countersigns by secure phone link, and the office approves. Each step is timestamped and locked behind the last.',
         visual: (
           <Stage caption="Submit → client signs → office approves. Approval freezes the money.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '5%' }}>
+              Worker submits their hours
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '4.5rem', left: '40%' }}>
+              Site countersigns by secure phone link
+            </Bubble>
+            <Bubble i={3} step={3} tail="left" style={{ top: '4.5rem', right: '5%' }}>
+              Your approval freezes pay & charge forever
+            </Bubble>
+            <Bubble i={4} step={4} tail="top" accent style={{ bottom: '4.5rem', left: '35%' }}>
+              The snapshot can't be rewritten later — reports stay honest
+            </Bubble>
             <div className="flex items-center gap-1.5">
               <Panel className="flex-1" title="Worker"><Chip tone="sky" i={0}>Submitted</Chip><p className="mt-1 text-[10px] text-white/60">13.5h · night</p></Panel>
               <FlowArrow i={1} />
@@ -351,6 +462,9 @@ export const MODULES: Module[] = [
         caption: 'Night, weekend and bank-holiday multipliers apply automatically — highest-wins by default — so a Saturday night is priced correctly without anyone reaching for a calculator.',
         visual: (
           <Stage caption="Night ×1.15, weekend ×1.25, bank holiday ×1.5 — highest wins automatically.">
+            <Bubble i={1} step={1} tail="left" style={{ top: '7.5rem', right: '6%' }}>
+              Uplift applies to both pay AND charge automatically
+            </Bubble>
             <div className="space-y-2">
               <Row i={0}><span className="text-xs text-white">Mon day · 11h</span><span className="tr-rise text-xs text-white/70" style={delay(1)}>£231.00</span></Row>
               <Row i={1}><span className="text-xs text-white">Sat night · 13.5h</span><span className="tr-rise text-xs text-amber-300" style={delay(2)}>×1.25 → £354.38</span></Row>
@@ -364,6 +478,12 @@ export const MODULES: Module[] = [
         caption: 'Wrong hours? Raise a query against that single timesheet — it pauses while the rest of the week flows through. Resolve, resubmit, approve, with the audit trail intact.',
         visual: (
           <Stage caption="One queried line doesn't hold up everyone else's pay.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '8%' }}>
+              Dispute just this line — it pauses alone
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '9rem', right: '8%' }}>
+              Everything else still approves and gets paid
+            </Bubble>
             <div className="space-y-2">
               <Row i={0}><NameBar name="Mary Begum" sub="Day · 21 Oct · client says 9h not 11h" /><Chip tone="amber" i={1} blink>Query open</Chip></Row>
               <Row i={1}><NameBar name="Chloe Stan" sub="Night · 20 Oct" /><Chip tone="emerald" i={2}>Approved</Chip></Row>
@@ -383,6 +503,12 @@ export const MODULES: Module[] = [
         caption: 'Pick a client and a period — every approved, unbilled shift becomes a line item with hours, rate and uplift already resolved. Totals count themselves; numbering is automatic.',
         visual: (
           <Stage caption="Approved shifts → line items → running total. Nothing is typed twice.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '6%' }}>
+              Each approved shift becomes a line — rates already resolved
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '5rem', right: '8%' }}>
+              The total counts itself up as lines land
+            </Bubble>
             <Panel title="INV-2026-0002 — Chestnut Grange" className="tr-sweep">
               <div className="space-y-1.5">
                 <Row i={0}><span className="text-[11px] text-white">Chloe Stan · 14 Oct · night 13.5h</span><span className="text-[11px] text-emerald-300">£425.25</span></Row>
@@ -401,6 +527,12 @@ export const MODULES: Module[] = [
         caption: 'Send queues a pre-filled email to the client\'s billing address with the PDF attached-ready print view. Marking paid takes a real payment date — that\'s what feeds reconciliation.',
         visual: (
           <Stage caption="Draft → Sent → Paid, with a clean printable PDF in between.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '6.5rem', left: '10%' }}>
+              Send opens a pre-filled email to their billing contact
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '3.5rem', right: '8%' }}>
+              Marking paid records the real payment date for reconciliation
+            </Bubble>
             <div className="relative">
               <Panel title="INV-2026-0001 — Ferndale Court">
                 <p className="text-xs text-white/70">£1,142.00 · issued 12 Oct · due 26 Oct</p>
@@ -418,6 +550,12 @@ export const MODULES: Module[] = [
         caption: 'Sent-but-unpaid invoices stack into ageing buckets — current, 1–30, 31–60, 60+ — with the client names on each, so chasing is a report, not a memory test.',
         visual: (
           <Stage caption="Only issued invoices count as debt — drafts never pollute the numbers.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4rem', left: '8%' }}>
+              Each bar is an ageing bucket of unpaid invoices
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '5.5rem', left: '10%' }}>
+              Who owes what scrolls underneath — chase from here
+            </Bubble>
             <div className="flex items-end justify-center gap-5">
               <Bar h={35} tone="bg-emerald-400/80" i={0} label="Current" />
               <Bar h={70} tone="bg-amber-400/80" i={1} label="1–30d" />
@@ -441,6 +579,15 @@ export const MODULES: Module[] = [
         caption: 'The preview splits approved timesheets into PAYE and Ltd runs with totals and hours — and lists every rejected row with its exact reason before you commit.',
         visual: (
           <Stage caption="Two clean runs per period — and rejections that explain themselves.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '8%' }}>
+              PAYE and Ltd split automatically
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '4.2rem', right: '8%' }}>
+              Hours & totals before anything is committed
+            </Bubble>
+            <Bubble i={3} step={3} tail="top" style={{ bottom: '5rem', left: '25%' }}>
+              Every rejection names its reason — fix and rerun
+            </Bubble>
             <div className="grid grid-cols-2 gap-3">
               <Panel title="PAYE run"><Stat label="Rows" value={<Count to={36} />} i={0} /><p className="mt-1 text-[10px] text-white/60">417h · <Count to={9117.54} prefix="£" decimals={2} dur={1200} /></p></Panel>
               <Panel title="Ltd run"><Stat label="Rows" value={<Count to={23} />} i={1} /><p className="mt-1 text-[10px] text-white/60">250.5h · <Count to={5322.23} prefix="£" decimals={2} dur={1200} /></p></Panel>
@@ -457,6 +604,12 @@ export const MODULES: Module[] = [
         caption: 'Export writes a payroll run, marks the shifts paid against that run ID, and downloads the bureau CSV. Run it again on the same period and the rows refuse — double-pay is structurally impossible.',
         visual: (
           <Stage caption="Export → run recorded → shifts stamped paid → re-export refused.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '8%' }}>
+              Bureau-formatted rows — payroll_ref, hours, uplift, amount
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '3.5rem', right: '8%' }}>
+              The run is recorded — a second export of the same rows refuses
+            </Bubble>
             <div className="relative">
               <Panel title="Run #22 · PAYE" scan>
                 <Row i={0}><span className="text-[11px] text-white">SAN-001 · Chloe Stan · 13.5h</span><Chip tone="emerald" i={1}>£283.50</Chip></Row>
@@ -474,6 +627,9 @@ export const MODULES: Module[] = [
         caption: 'Run history lists each export — who ran it, when, which engagement, how many shifts, total value — with the CSV re-downloadable at any point.',
         visual: (
           <Stage caption="Full export history — re-download any run's CSV any time.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '8%' }}>
+              Every run: who ran it, when, how many shifts, total value
+            </Bubble>
             <div className="space-y-2">
               <Row i={0}><span className="text-xs text-white">Run #23 · Ltd · 9 shifts</span><span className="text-[11px] text-emerald-300">£1,759.76</span></Row>
               <Row i={1}><span className="text-xs text-white">Run #22 · PAYE · 11 shifts</span><span className="text-[11px] text-emerald-300">£2,855.74</span></Row>
@@ -493,6 +649,15 @@ export const MODULES: Module[] = [
         caption: 'Margin reads the frozen approval snapshot — charge minus pay minus employer NI minus bureau fee — so historical numbers can\'t drift when rates change later.',
         visual: (
           <Stage caption="Charge − pay − NI − fee = real margin. From frozen snapshots, not live rates.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4rem', left: '8%' }}>
+              Charge is what the home pays
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '4rem', left: '38%' }}>
+              Pay + NI + fee is the true cost
+            </Bubble>
+            <Bubble i={3} step={3} tail="left" style={{ top: '4rem', right: '8%' }} accent>
+              What's left is yours — from frozen data
+            </Bubble>
             <div className="flex items-end justify-center gap-6">
               <Bar h={92} tone="bg-sky-400/80" i={0} label="Charge" />
               <Bar h={62} tone="bg-amber-400/80" i={1} label="Pay" />
@@ -508,6 +673,12 @@ export const MODULES: Module[] = [
         caption: 'Hit Run on a date range and results group by client and worker — actuals where snapshots exist, estimates flagged as estimates, unavailable rows named rather than hidden.',
         visual: (
           <Stage caption="Actual / estimated / unavailable are labelled separately — nothing is silently guessed.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4rem', left: '6%' }}>
+              Three honest buckets — real, estimated, and missing
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '5.5rem', left: '25%' }}>
+              The trend line draws your margin over time
+            </Bubble>
             <div className="grid grid-cols-3 gap-2">
               <Panel title="Actual"><Stat label="Shifts" value={<Count to={31} />} i={0} /><p className="text-[10px] text-emerald-300">frozen snapshots</p></Panel>
               <Panel title="Estimated"><Stat label="Shifts" value={<Count to={6} />} i={1} /><p className="text-[10px] text-amber-300">live rates</p></Panel>
@@ -522,6 +693,9 @@ export const MODULES: Module[] = [
         caption: 'Group results by client to see which homes are worth the effort, or by worker to spot where uplifts are eating the spread.',
         visual: (
           <Stage caption="Per-client margins — see instantly who earns their fee.">
+            <Bubble i={1} step={1} tail="left" style={{ top: '4.5rem', right: '8%' }}>
+              Longest bar = best-margin client at a glance
+            </Bubble>
             <div className="space-y-2">
               <div><p className="text-[10px] text-white/60">Chestnut Grange</p><FillBar i={0} pct={92} tone="bg-emerald-400/80" /></div>
               <div><p className="text-[10px] text-white/60">Oaks Lodge</p><FillBar i={1} pct={64} tone="bg-teal-400/80" /></div>
@@ -542,6 +716,12 @@ export const MODULES: Module[] = [
         caption: 'The overview counts valid, expiring, expired and missing documents across the workforce — statuses refresh themselves as dates pass, with nobody needing to flip a flag.',
         visual: (
           <Stage caption="Expiring flips itself at 60 days; expired flips the day after — automatically.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '6%' }}>
+              Statuses update by date — nobody ticks a flag
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '4.5rem', right: '6%' }}>
+              "Blocked" = can't be booked anywhere until fixed
+            </Bubble>
             <div className="grid grid-cols-4 gap-3">
               <Stat i={0} label="Valid" value={<Count to={412} />} tone="text-emerald-300" />
               <Stat i={1} label="Expiring" value={<Count to={9} />} tone="text-amber-300" />
@@ -560,6 +740,12 @@ export const MODULES: Module[] = [
         caption: 'At 60, 30, 14 and 7 days before expiry the system writes reminder messages to the outbox — WhatsApp and email, addressed to the worker — and logs a monthly digest to compliance staff.',
         visual: (
           <Stage caption="60 / 30 / 14 / 7-day reminders into the outbox — deduped per document per day.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '5%' }}>
+              The closer expiry gets, the louder the reminder
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.5rem', right: '5%' }}>
+              Messages write themselves — staff just click send
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="w-40" title="Expiry clock">
                 <div className="space-y-1.5"><FillBar i={0} pct={100} label="60d" tone="bg-sky-400/70" /><FillBar i={1} pct={70} label="30d" tone="bg-amber-400/70" /><FillBar i={2} pct={40} label="14d" tone="bg-orange-400/70" /><FillBar i={3} pct={20} label="7d" tone="bg-red-400/70" /></div>
@@ -577,6 +763,12 @@ export const MODULES: Module[] = [
         caption: 'workerComplianceFor runs at allocation time — a missing or expired required document makes the shift refuse to save. There is no override; staff must fix the document.',
         visual: (
           <Stage caption="HTTP 422 — the shift literally will not create while a required doc is missing.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '8%' }}>
+              Try to allocate a non-compliant worker…
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.5rem', right: '8%' }}>
+              …and the system flatly refuses. No override exists.
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="flex-1" title="Allocate"><Row i={0}><NameBar name="Test Worker" /><Chip tone="red" i={1}>References missing</Chip></Row></Panel>
               <FlowArrow i={2} />
@@ -597,6 +789,12 @@ export const MODULES: Module[] = [
         caption: 'Staff set availability, accept offers, submit timesheets, upload documents and export their own data from the worker portal — rates and margins stay invisible to them.',
         visual: (
           <Stage caption="Availability → offers → timesheets → documents → data export. All self-serve.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '6%' }}>
+              Everything a worker needs lives in their portal
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.2rem', right: '6%' }}>
+              …and rates/margins are invisible to them by design
+            </Bubble>
             <div className="grid grid-cols-2 gap-3">
               <Panel title="Worker portal" scan>
                 <div className="space-y-1.5">
@@ -617,6 +815,12 @@ export const MODULES: Module[] = [
         caption: 'Homes raise requests, watch fill status live, review their rota and countersign timesheets from the client portal — without ever seeing worker pay.',
         visual: (
           <Stage caption="Requests, rota, timesheet signing — the client's own view of their service.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '8%' }}>
+              They watch fill status live — no chasing you
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.5rem', right: '8%' }}>
+              They countersign timesheets here too
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="flex-1" title="Client portal">
                 <div className="space-y-1.5">
@@ -635,6 +839,12 @@ export const MODULES: Module[] = [
         caption: 'Supervisors get tonight\'s rota and check workers in on site — arrival confirmations feed back to the office in real time.',
         visual: (
           <Stage caption="On-site check-in — the office sees arrivals as they happen.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '8%' }}>
+              Supervisor taps workers in as they arrive
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '7.5rem', right: '8%' }}>
+              A no-show stays flagged — you see it instantly
+            </Bubble>
             <div className="space-y-2">
               <Row i={0}><NameBar name="Chloe Stan" sub="Night · 19:00 start" /><Chip tone="emerald" i={1} pulse>Checked in 18:52</Chip></Row>
               <Row i={1}><NameBar name="Mary Begum" sub="Night · 19:00 start" /><Chip tone="amber" i={2} blink>Awaiting arrival</Chip></Row>
@@ -653,6 +863,12 @@ export const MODULES: Module[] = [
         caption: 'The board colour-codes each worker — no DBS on file, never checked, re-check overdue, or flagged results — so renewals are chased before they lapse, not after.',
         visual: (
           <Stage caption="Red needs fixing, amber needs re-checking, emerald is current.">
+            <Bubble i={1} step={1} tail="left" style={{ top: '4.5rem', right: '6%' }}>
+              Colour tells you the action needed — no reading required
+            </Bubble>
+            <Bubble i={2} step={2} tail="bottom" style={{ top: '9rem', left: '8%' }}>
+              Click a name to jump into their compliance file
+            </Bubble>
             <div className="space-y-2">
               <Row i={0}><NameBar name="Mary Begum" sub="cert 0017123456 · checked 15 Oct" /><Chip tone="emerald" i={1}>In date</Chip></Row>
               <Row i={1}><NameBar name="Adebayo Bello" sub="last check 7 months ago" /><Chip tone="amber" i={2}>Re-check due</Chip></Row>
@@ -667,6 +883,15 @@ export const MODULES: Module[] = [
         caption: 'Whatever provider you use — gov.uk direct or an umbrella body — export their CSV and drop it in. Rows match workers by email, id or name and land as audited register checks.',
         visual: (
           <Stage caption="Provider CSV → matched to workers → register_checks with 'csv import' provenance.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.5rem', left: '5%' }}>
+              Export this from whoever runs your checks
+            </Bubble>
+            <Bubble i={2} step={2} tail="left" style={{ top: '4.5rem', right: '5%' }}>
+              Matched to existing workers — never creates anyone
+            </Bubble>
+            <Bubble i={3} step={3} tail="top" style={{ bottom: '4.5rem', right: '15%' }}>
+              Marked honestly as an import on their file
+            </Bubble>
             <div className="flex items-center gap-2">
               <Panel className="w-44" title="Provider CSV"><p className="text-[10px] text-white/60">email · cert · result · date</p></Panel>
               <FlowArrow i={1} />
@@ -683,6 +908,12 @@ export const MODULES: Module[] = [
         caption: 'The connection profile stores provider, endpoint, org ref and key — and Test connection probes for real. Until a provider confirms API access, the page says exactly that; no fake green lights.',
         visual: (
           <Stage caption="Saved profile + live probe — the automatic path is plumbed, never pretended.">
+            <Bubble i={1} step={1} tail="bottom" style={{ top: '4.2rem', left: '6%' }}>
+              Works with gov.uk or any umbrella body — just name it
+            </Bubble>
+            <Bubble i={2} step={2} tail="top" style={{ bottom: '5rem', left: '28%' }}>
+              The probe cycles real states — no fake green lights
+            </Bubble>
             <Panel title="Provider profile">
               <div className="space-y-1.5 text-[11px] text-white/70">
                 <p className="tr-rise" style={delay(0)}>Provider: <b className="text-white">uCheck / gov.uk / umbrella body</b></p>
