@@ -48,7 +48,10 @@ export default function Invoices() {
       alert(e instanceof Error ? e.message : 'Failed');
     }
   };
-  const openDetail = async (id: number) => setDetail(await api.get(`/invoices/${id}`));
+  const openDetail = async (id: number) => {
+    try { setDetail(await api.get(`/invoices/${id}`)); }
+    catch (e) { alert(e instanceof Error ? e.message : 'Could not load invoice'); }
+  };
 
   return (
     <div>
@@ -310,9 +313,19 @@ function Payroll() {
   const [data, setData] = useState<PayrollPreview | null>(null);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [err, setErr] = useState('');
   const loadRuns = () => api.get<PayrollRun[]>('/payroll/runs').then(setRuns).catch(() => {});
-  const run = () => api.get<PayrollPreview>(`/payroll?from=${from}&to=${to}`).then(setData).catch(() => setData(null));
+  const run = async (open = false) => {
+    setPreviewing(true); setErr('');
+    try {
+      const d = await api.get<PayrollPreview>(`/payroll?from=${from}&to=${to}`);
+      setData(d);
+      if (open) setPreviewOpen(true);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Preview failed'); }
+    finally { setPreviewing(false); }
+  };
   useEffect(() => { void run(); void loadRuns(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doExport = async (engagement: 'paye' | 'ltd') => {
@@ -320,7 +333,7 @@ function Payroll() {
     try {
       const res = await api.post<{ run: PayrollRun; rejected: RejectedRow[] }>(`/payroll/export`, { from, to, engagement });
       window.open(`/api/payroll/runs/${res.run.id}/csv`, '_blank');
-      run(); loadRuns();
+      void run(); void loadRuns();
     } catch (e) { setErr((e as Error).message); }
     finally { setExporting(null); }
   };
@@ -360,7 +373,7 @@ function Payroll() {
         <div className="flex flex-wrap items-end gap-2 px-5 py-4">
           <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} />
           <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} />
-          <button className={btnPrimary} onClick={run}>Preview</button>
+          <button className={btnPrimary} disabled={previewing} onClick={() => run(true)}>{previewing ? 'Loading…' : 'Preview'}</button>
         </div>
         {err && <p className="mx-5 mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
       </Card>
@@ -380,6 +393,53 @@ function Payroll() {
             ))}
           </ul>
         </Card>
+      )}
+      {previewOpen && data && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-3 backdrop-blur-sm animate-fade-in sm:items-center" onClick={() => setPreviewOpen(false)}>
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-display text-lg font-semibold">Payroll preview</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {fmtDate(from)} – {fmtDate(to)} · provisional-v1 · PAYE {data.paye.length} rows ({data.totals.paye_hours}h · {gbp2(data.totals.paye_amount)}) · Ltd {data.ltd.length} rows ({data.totals.ltd_hours}h · {gbp2(data.totals.ltd_amount)})
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {(['paye', 'ltd'] as const).map((g) => {
+                const accepted = data[g], rejected = data.rejected[g];
+                return (
+                  <div key={g} className="rounded-2xl bg-slate-900/[0.035] p-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{g === 'paye' ? 'PAYE' : 'Ltd'} · {accepted.length} exportable</h3>
+                      <button className={btnPrimary} disabled={exporting === g || !accepted.length} onClick={() => doExport(g)}>
+                        {exporting === g ? 'Exporting…' : 'Export'}
+                      </button>
+                    </div>
+                    <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                      {accepted.map((o) => (
+                        <li key={o.shift_id} className="flex items-center justify-between text-xs">
+                          <span className="text-ink">{o.worker} <span className="text-slate-400">· {fmtDate(o.date)}</span></span>
+                          <span className="font-medium text-ink">{gbp2(o.amount)}</span>
+                        </li>
+                      ))}
+                      {!accepted.length && <li className="text-[11px] text-slate-400">None exportable.</li>}
+                    </ul>
+                    {!!rejected.length && (
+                      <div className="mt-2 border-t border-red-200/60 pt-2">
+                        {rejected.map((r2) => (
+                          <p key={r2.shift_id} className="flex items-start gap-1 text-[11px] text-red-600">
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {r2.worker} · {fmtDate(r2.date)} — {r2.reasons.join('; ')}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {err && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
+            <div className="mt-4 flex justify-end">
+              <button className={btnGhost} onClick={() => setPreviewOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -402,7 +462,14 @@ function Margin() {
   const [from, setFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState<MarginData | null>(null);
-  const run = () => api.get<MarginData>(`/margin?from=${from}&to=${to}`).then(setData).catch(() => setData(null));
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState('');
+  const run = async () => {
+    setRunning(true); setErr('');
+    try { setData(await api.get<MarginData>(`/margin?from=${from}&to=${to}`)); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Failed to load margin'); }
+    finally { setRunning(false); }
+  };
   useEffect(() => { void run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="space-y-5">
@@ -411,8 +478,9 @@ function Margin() {
         <div className="flex flex-wrap items-end gap-2 px-5 py-4">
           <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} />
           <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} />
-          <button className={btnPrimary} onClick={run}>Run</button>
+          <button className={btnPrimary} disabled={running} onClick={() => run()}>{running ? 'Running…' : 'Run'}</button>
         </div>
+        {err && <p className="mx-5 mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
         {data && (
           <div className="px-5 pb-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">

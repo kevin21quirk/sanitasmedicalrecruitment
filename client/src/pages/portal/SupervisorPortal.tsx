@@ -133,7 +133,7 @@ function AllocateModal({ request, onClose, onDone }: { request: SiteRequest; onC
                     n.channel === 'whatsapp'
                       ? 'border-emerald-300/80 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100'
                       : 'border-slate-300/80 bg-white/60 text-slate-700 hover:bg-white')}
-                  onClick={() => window.open(n.wa_link || n.mailto_link || '', '_blank')}>
+                  onClick={() => { const link = n.wa_link || n.mailto_link; if (link) window.open(link, '_blank'); }}>
                   {n.channel === 'whatsapp' ? <MessageSquare className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
                   {n.channel === 'whatsapp' ? 'WhatsApp' : 'Email'} {n.to_name ?? 'the site'} — shift covered
                 </button>
