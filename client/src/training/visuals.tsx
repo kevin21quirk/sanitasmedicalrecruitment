@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 // ── Training-scene animation primitives ─────────────────────────────────────
 // Self-contained CSS — injected once by Training.tsx via <TrainingStyles/>.
@@ -266,39 +266,22 @@ export function CycleChip({ states, ms = 1400 }: { states: { label: string; tone
   return <Chip tone={states[i].tone}>{states[i].label}</Chip>;
 }
 
-// Speech-bubble callout — pops in over the stage to narrate a step/element.
-// `absolute` + style={{top,left,right}} floats it over the scene; without it,
-// it renders inline so it can sit above an element in normal flow.
-export function Bubble({ children, i = 0, step, tail = 'bottom', absolute = true, accent, style, className = '' }: {
-  children: ReactNode; i?: number; step?: number; absolute?: boolean; accent?: boolean;
-  tail?: 'top' | 'bottom' | 'left' | 'right'; style?: CSSProperties; className?: string;
+// Dark stage wrapper every scene renders inside. `title` is an in-scene
+// eyebrow heading; `narration` fills the big bubble docked at the bottom —
+// the single explanation box for the whole scene (never overlays visuals).
+export function Stage({ children, title, narration }: {
+  children: ReactNode; title?: string; narration: ReactNode;
 }) {
-  const skin = accent ? 'bg-accent-500 text-white' : 'bg-white text-ink';
-  const tails: Record<string, string> = {
-    bottom: `after:absolute after:-bottom-1.5 after:left-5 after:h-3 after:w-3 after:rotate-45 ${accent ? 'after:bg-accent-500' : 'after:bg-white'}`,
-    top:    `after:absolute after:-top-1.5 after:left-5 after:h-3 after:w-3 after:rotate-45 ${accent ? 'after:bg-accent-500' : 'after:bg-white'}`,
-    left:   `after:absolute after:-left-1.5 after:top-4 after:h-3 after:w-3 after:rotate-45 ${accent ? 'after:bg-accent-500' : 'after:bg-white'}`,
-    right:  `after:absolute after:-right-1.5 after:top-4 after:h-3 after:w-3 after:rotate-45 ${accent ? 'after:bg-accent-500' : 'after:bg-white'}`,
-  };
-  return (
-    <div className={`tr-pop z-10 max-w-[13.5rem] rounded-xl px-3 py-2 text-[11px] font-medium leading-snug shadow-xl ${skin} ${tails[tail]} ${absolute ? 'absolute' : 'relative inline-block'} ${className}`}
-      style={{ ...delay(i, 900), ...style }}>
-      {step != null && (
-        <span className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 align-middle text-[9px] font-bold text-white">{step}</span>
-      )}
-      {children}
-    </div>
-  );
-}
-
-// Dark stage wrapper every scene renders inside — content is `relative` so
-// Bubble callouts can be absolutely positioned over it.
-export function Stage({ children, caption }: { children: ReactNode; caption: ReactNode }) {
   return (
     <div className="tr-stage flex h-full flex-col">
-      <div className="relative min-h-0 flex-1 overflow-hidden p-6 sm:p-8">{children}</div>
-      <div className="shrink-0 border-t border-white/10 bg-black/25 px-6 py-3">
-        <p className="text-center text-[13px] font-medium leading-snug text-sky-100/90">{caption}</p>
+      {title && (
+        <p className="tr-rise shrink-0 px-6 pt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-accent-400 sm:px-8">{title}</p>
+      )}
+      <div className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-6 pb-4 pt-3 sm:px-8">{children}</div>
+      <div className="shrink-0 px-5 pb-5">
+        <div className="tr-rise rounded-2xl bg-white/95 px-5 py-3.5 shadow-xl" style={delay(1, 400)}>
+          <p className="text-[13px] font-medium leading-relaxed text-ink">{narration}</p>
+        </div>
       </div>
     </div>
   );
