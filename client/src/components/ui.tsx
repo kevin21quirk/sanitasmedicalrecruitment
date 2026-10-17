@@ -277,9 +277,11 @@ export function PageHeader({ title, subtitle, children, eyebrow }: {
   );
 }
 
-// Horizontally-scrolling board (kanban/pipeline). Renders a thicker scrollbar
-// plus edge chevrons whenever the content can scroll that way — so it's
-// obvious there's more off-screen without keyboard or trackpad gestures.
+// Horizontally-scrolling board (kanban/pipeline). Three affordances so mouse
+// users are never stuck: a thicker scrollbar, edge chevrons pinned near the
+// top, and wheel→horizontal translation — a normal vertical mouse wheel
+// scrolls the board sideways while hovered (only while there's room to move,
+// otherwise the page scrolls normally).
 export function HScroller({ children, className }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [canL, setCanL] = useState(false);
@@ -295,15 +297,26 @@ export function HScroller({ children, className }: { children: ReactNode; classN
     el.addEventListener('scroll', check, { passive: true });
     const ro = new ResizeObserver(check);
     ro.observe(el);
-    return () => { el.removeEventListener('scroll', check); ro.disconnect(); };
+    // React attaches wheel listeners passively, so use a native one to allow preventDefault
+    const onWheel = (e: WheelEvent) => {
+      if (!e.deltaY || e.shiftKey) return;
+      const max = el.scrollWidth - el.clientWidth;
+      const dir = e.deltaY > 0 ? 1 : -1;
+      if ((dir > 0 && el.scrollLeft < max - 1) || (dir < 0 && el.scrollLeft > 0)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => { el.removeEventListener('scroll', check); el.removeEventListener('wheel', onWheel); ro.disconnect(); };
   }, [children]);
   const nudge = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * Math.max(280, (ref.current?.clientWidth ?? 400) - 80), behavior: 'smooth' });
-  const btn = 'absolute top-1/2 z-10 -translate-y-1/2 rounded-full border border-slate-200 bg-white/95 p-1.5 text-slate-500 shadow-md transition hover:text-brand-600 hover:shadow-lg';
+  const btn = 'absolute top-16 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700';
   return (
     <div className="relative">
-      {canL && <button type="button" onClick={() => nudge(-1)} aria-label="Scroll left" className={clsx(btn, 'left-1.5')}><ChevronLeft className="h-4 w-4" /></button>}
+      {canL && <button type="button" onClick={() => nudge(-1)} aria-label="Scroll pipeline left" title="Scroll left" className={clsx(btn, 'left-1.5')}><ChevronLeft className="h-5 w-5" /></button>}
       <div ref={ref} className={clsx('scroll-x overflow-x-auto', className)}>{children}</div>
-      {canR && <button type="button" onClick={() => nudge(1)} aria-label="Scroll right" className={clsx(btn, 'right-1.5')}><ChevronRight className="h-4 w-4" /></button>}
+      {canR && <button type="button" onClick={() => nudge(1)} aria-label="Scroll pipeline right" title="Scroll right" className={clsx(btn, 'right-1.5')}><ChevronRight className="h-5 w-5" /></button>}
     </div>
   );
 }
