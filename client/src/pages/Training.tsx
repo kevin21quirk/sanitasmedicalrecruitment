@@ -26,7 +26,7 @@ export default function Training() {
                 </span>
               </span>
               <span className="absolute bottom-2 right-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white">
-                {m.scenes.length} scenes
+                {m.scenes.length} scenes · ~{m.scenes.length * 7}s
               </span>
             </div>
             <div className="px-4 py-3">
