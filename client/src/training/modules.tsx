@@ -5,26 +5,20 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
-  Stage, Stat, Row, NameBar, Chip, Stamp, FlowArrow, Panel, Bar, Count,
-  delay, Ticker, Spark, KanbanMove, FillBar, CycleChip,
+  Stage, Count, Spark, CycleChip,
+  Frame, AppBtn, AppChip, AppStat, AppRow, LName,
+  TField, SField, AppModal, Drawer, CheckItem, TabBar, PipeCol, Phone, Toast,
 } from './visuals';
 
-export interface Scene { title: string; caption: string; visual: ReactNode }
+export interface Scene { title: string; caption: string; secs?: number; visual: ReactNode }
 export interface Module {
   id: string; title: string; subtitle: string; icon: LucideIcon;
   tint: string; scenes: Scene[];
 }
 
-const PIPE = [
-  { label: 'New', color: '#38bdf8' }, { label: 'Offers out', color: '#fbbf24' },
-  { label: 'Part-filled', color: '#fb923c' }, { label: 'Booked', color: '#2dd4bf' },
-];
-
-const PIPE_FULL = [
-  { label: 'New', color: '#38bdf8' }, { label: 'Offers out', color: '#fbbf24' },
-  { label: 'Part-filled', color: '#fb923c' }, { label: 'Booked', color: '#2dd4bf' },
-  { label: 'Awaiting TS', color: '#a78bfa' }, { label: 'Invoice', color: '#14b8a6' },
-  { label: 'Complete', color: '#34d399' },
+const PIPE_CHIPS = [
+  { l: 'New', c: '#38bdf8', n: 4 }, { l: 'Offers', c: '#fbbf24', n: 3 }, { l: 'Part', c: '#fb923c', n: 2 },
+  { l: 'Booked', c: '#2dd4bf', n: 6 }, { l: 'Timesheet', c: '#a78bfa', n: 3 }, { l: 'Invoice', c: '#14b8a6', n: 2 }, { l: 'Done', c: '#34d399', n: 9 },
 ];
 
 export const MODULES: Module[] = [
@@ -33,57 +27,82 @@ export const MODULES: Module[] = [
     id: 'dashboard', title: 'Dashboard & Pipeline', subtitle: 'Your whole operation at a glance', icon: LayoutDashboard, tint: 'from-sky-500 to-blue-600',
     scenes: [
       {
-        title: 'Live numbers, always current',
-        caption: 'The dashboard opens on real-time totals — workers on the books, care homes you serve, this month\'s revenue and margin — so the business position is never more than a glance away.',
+        title: 'Every morning starts here',
+        caption: 'The dashboard opens on live totals and the colour-coded pipeline strip — click any stage to jump to the board.',
         visual: (
-          <Stage title="Dashboard · KPI tiles" narration="These tiles pull live totals straight from the database — active workers, care homes, and this month's revenue and margin. They count themselves up when the page loads, so what you see is always now, never last week's export.">
-            <div className="grid grid-cols-4 gap-3">
-              <Stat i={0} label="Active workers" value={<Count to={47} />} />
-              <Stat i={1} label="Care homes" value={<Count to={7} />} />
-              <Stat i={2} label="Revenue MTD" value={<Count to={14.4} prefix="£" suffix="k" decimals={1} />} tone="text-emerald-300" />
-              <Stat i={3} label="Margin MTD" value={<Count to={3.1} prefix="£" suffix="k" decimals={1} />} tone="text-teal-300" />
-            </div>
-            <Panel className="mt-4" title="Revenue trend">
-              <Spark points={[8, 9.4, 8.8, 10.2, 11.8, 11.1, 13.2, 14.4]} tone="#38bdf8" />
-            </Panel>
-            <div className="mt-4"><Ticker items={[
-              'Chloe Stan booked — Chestnut Grange night', 'Invoice INV-2026-0002 sent to Ferndale Court',
-              'Mary Begum timesheet approved', 'New request — Oaks Lodge, 2 × day shifts',
-              'Payroll run #22 exported (PAYE)', 'DBS check recorded — Emmanuel Nwosu',
-            ]} /></div>
+          <Stage title="The Dashboard screen" narration="This is the real dashboard the office sees each morning — live tiles for workers, homes, revenue and margin, with the colour-coded pipeline underneath showing how many requests sit at each stage. Watch the cursor click the amber Offers stage — it jumps straight to that work on the Requests board.">
+            <Frame nav="Dashboard" url="" title="Recruitment Dashboard" sub="Live overview of candidates, clients, placements and compliance."
+              cursor={[{ x: 55, y: 90, at: 200 }, { x: 40, y: 47, at: 4200, click: true }]}>
+              <div className="grid grid-cols-4 gap-1.5">
+                <AppStat label="Active workers" value={<Count to={47} />} at={100} />
+                <AppStat label="Care homes" value={<Count to={7} />} at={250} />
+                <AppStat label="Revenue MTD" value={<Count to={14.4} prefix="£" suffix="k" decimals={1} />} at={400} tone="text-emerald-600" />
+                <AppStat label="Margin MTD" value={<Count to={3.1} prefix="£" suffix="k" decimals={1} />} at={550} tone="text-teal-600" />
+              </div>
+              <div className="tr-rise mt-2 rounded-lg border border-slate-200/70 bg-white p-2" style={{ animationDelay: '700ms' }}>
+                <p className="mb-1.5 text-[8px] font-bold uppercase tracking-wide text-slate-400">Workflow pipeline</p>
+                <div className="flex h-1.5 overflow-hidden rounded-full">
+                  {PIPE_CHIPS.map((s) => <div key={s.l} style={{ background: s.c, width: `${s.n * 4}%` }} />)}
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {PIPE_CHIPS.map((s, i) => (
+                    <span key={s.l} className={`rounded-full px-1.5 py-0.5 text-[7px] font-semibold ring-1 ring-inset ${i === 1 ? 'tr-hit' : ''}`}
+                      style={{ color: s.c, background: `${s.c}18`, ['--tw-ring-color' as any]: `${s.c}40`, animationDelay: i === 1 ? '4200ms' : undefined }}>
+                      {s.l} {s.n}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                <AppRow at={900} className="col-span-2"><LName name="Chloe Stan" sub="Chestnut Grange · tonight" /><AppChip tone="teal">Booked</AppChip></AppRow>
+                <AppRow at={1050}><span className="text-[8px] text-amber-600">2 docs expiring</span></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'The colour-coded pipeline',
-        caption: 'Every client request travels through seven colour-coded stages. The dashboard strip shows live counts at each stage — click any one to jump to the board filtered to exactly that work.',
+        title: 'This week & alerts',
+        caption: 'Shifts booked this week, tasks due, and compliance alerts surfaced before they become problems.',
         visual: (
-          <Stage title="Dashboard · workflow pipeline" narration="Watch a request card travel: blue is new, amber means offers are out waiting on replies, teal is booked and emerald is complete. If work slips backwards — a filled request whose shifts get cancelled — the card drops back to New automatically, so the board never lies.">
-            <KanbanMove cols={PIPE_FULL} card={<span>Chestnut Grange · Night ×2</span>} dwell={1100} />
-            <div className="mt-8 space-y-2">
-              <Row i={1}><span className="text-xs text-white">Oaks Lodge · urgent day cover</span><Chip tone="red" blink>Urgent</Chip></Row>
-              <Row i={2}><span className="text-xs text-white">Ferndale Court · 3 shifts approved</span><Chip tone="teal">Ready to invoice</Chip></Row>
-            </div>
+          <Stage title="Dashboard · this week & alerts" narration="Scroll down and the week is laid out — every booked shift with its worker and home on the left, and anything needing attention on the right: documents expiring, open timesheet queries, tasks due today. Problems surface here before they reach a rota.">
+            <Frame nav="Dashboard" url="" title="Recruitment Dashboard" sub="This week">
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="col-span-2 space-y-1 rounded-lg border border-slate-200/70 bg-white p-2">
+                  <p className="text-[8px] font-bold uppercase tracking-wide text-slate-400">This week's shifts</p>
+                  <AppRow at={100}><LName name="Chloe Stan" sub="Chestnut Grange · Mon night" /><AppChip tone="teal">Booked</AppChip></AppRow>
+                  <AppRow at={250}><LName name="Mary Begum" sub="Oaks Lodge · Tue day" /><AppChip tone="teal">Booked</AppChip></AppRow>
+                  <AppRow at={400}><LName name="Adebayo Bello" sub="Ferndale · Thu long day" /><AppChip tone="sky">Offered</AppChip></AppRow>
+                  <AppRow at={550}><LName name="Emmanuel Nwosu" sub="Meadow View · Sat night" /><AppChip tone="teal">Booked</AppChip></AppRow>
+                </div>
+                <div className="space-y-1 rounded-lg border border-slate-200/70 bg-white p-2">
+                  <p className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Attention</p>
+                  <p className="tr-rise rounded bg-amber-50 px-1.5 py-1 text-[8px] text-amber-700 ring-1 ring-amber-600/20" style={{ animationDelay: '800ms' }}>2 documents expiring &lt;60d</p>
+                  <p className="tr-rise rounded bg-red-50 px-1.5 py-1 text-[8px] text-red-600 ring-1 ring-red-600/20" style={{ animationDelay: '1100ms' }}>1 timesheet query open</p>
+                  <p className="tr-rise rounded bg-sky-50 px-1.5 py-1 text-[8px] text-sky-700 ring-1 ring-sky-600/20" style={{ animationDelay: '1400ms' }}>3 tasks due today</p>
+                </div>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'This week\'s shifts & alerts',
-        caption: 'Below the pipeline: every shift booked this week, tasks due, and compliance alerts — anything expiring or missing is surfaced before it becomes a problem.',
+        title: 'Revenue & activity',
+        caption: 'Revenue trend chart and the live activity feed — bookings, invoices sent, checks recorded.',
         visual: (
-          <Stage title="Dashboard · shifts & alerts" narration="Below the pipeline sit three things that matter today: every shift booked this week with who's covering it, tasks that are due, and compliance warnings — documents expiring or open timesheet queries — surfaced before they become problems, not after.">
-            <div className="grid grid-cols-3 gap-3">
-              <Panel title="This week" className="col-span-2">
-                <Row i={0}><NameBar name="Chloe Stan" sub="Chestnut Grange · Mon night" /><Chip tone="teal">Booked</Chip></Row>
-                <div className="mt-1.5" /><Row i={1}><NameBar name="Mary Begum" sub="Oaks Lodge · Tue day" /><Chip tone="teal">Booked</Chip></Row>
-                <div className="mt-1.5" /><Row i={2}><NameBar name="Adebayo Bello" sub="Ferndale · Thu long day" /><Chip tone="sky">Offered</Chip></Row>
-              </Panel>
-              <Panel title="Attention">
-                <p className="tr-rise text-[11px] text-amber-300" style={delay(1)}>2 docs expiring &lt;60d</p>
-                <p className="tr-rise mt-1.5 text-[11px] text-red-300" style={delay(2)}>1 timesheet query open</p>
-                <p className="tr-rise mt-1.5 text-[11px] text-sky-200/70" style={delay(3)}>3 tasks due today</p>
-              </Panel>
-            </div>
+          <Stage title="Dashboard · charts & activity" narration="The revenue chart draws the month as it happens, and the activity feed streams everything underneath — bookings, invoices sent, register checks, imports. If something happened in the system, it's on this feed.">
+            <Frame nav="Dashboard" url="" title="Recruitment Dashboard" sub="Revenue & activity">
+              <div className="rounded-lg border border-slate-200/70 bg-white p-2">
+                <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">Revenue trend</p>
+                <Spark points={[8, 9.4, 8.8, 10.2, 11.8, 11.1, 13.2, 14.4]} tone="#1863dc" h={64} />
+              </div>
+              <div className="mt-2 space-y-1 rounded-lg border border-slate-200/70 bg-white p-2">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Recent activity</p>
+                <AppRow at={100}><span className="text-[8px] text-slate-600">Chloe Stan booked — Chestnut Grange night</span><span className="text-[7px] text-slate-400">2m</span></AppRow>
+                <AppRow at={300}><span className="text-[8px] text-slate-600">INV-2026-0002 sent to Ferndale Court</span><span className="text-[7px] text-slate-400">18m</span></AppRow>
+                <AppRow at={500}><span className="text-[8px] text-slate-600">DBS check recorded — Emmanuel Nwosu</span><span className="text-[7px] text-slate-400">1h</span></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -91,96 +110,211 @@ export const MODULES: Module[] = [
   },
   // ── 2 · Candidates ──────────────────────────────────────────────────────────
   {
-    id: 'candidates', title: 'Candidates', subtitle: 'Your workforce, fully profiled', icon: Users, tint: 'from-violet-500 to-purple-600',
+    id: 'candidates', title: 'Candidates', subtitle: 'Add a worker, end to end', icon: Users, tint: 'from-violet-500 to-purple-600',
     scenes: [
       {
-        title: 'The workforce list',
-        caption: 'Every worker in one searchable, filterable list — by role, status or compliance state — so finding the right person for a call takes seconds, not a trawl through spreadsheets.',
+        title: 'The Candidates screen',
+        caption: 'Every worker in one searchable list with live compliance. Watch the cursor hit Add Candidate.',
+        secs: 8,
         visual: (
-          <Stage title="Candidates · the list" narration="This is your whole workforce in one list. Search by name, filter by role or status, and the compliance state rides along on every row — so before you even open a profile you can see who's fully bookable and who has a document expiring.">
-            <div className="space-y-2">
-              <Row i={0}><NameBar name="Chloe Stan" sub="Registered Nurse · SAN-001" /><Chip tone="emerald" i={1}>Compliant</Chip></Row>
-              <Row i={1}><NameBar name="Mary Begum" sub="HCA · SAN-005" /><Chip tone="emerald" i={2}>Compliant</Chip></Row>
-              <Row i={2}><NameBar name="Emmanuel Nwosu" sub="Support Worker · SAN-012" /><Chip tone="amber" i={3}>1 doc expiring</Chip></Row>
-              <Row i={3}><NameBar name="Adebayo Bello" sub="HCA · SAN-008" /><Chip tone="emerald" i={4}>Compliant</Chip></Row>
-            </div>
+          <Stage title="Candidates · the list" narration="This is the real Candidates screen: stat cards across the top, a search and filters on the toolbar, and every worker in the table with status and compliance score. Watch the cursor — it moves to the Add Candidate button and clicks it.">
+            <Frame nav="Candidates" url="candidates" eyebrow="Recruitment" title="Candidates" sub="Nurses, HCAs and support workers on the Sanitas books."
+              actions={<><AppBtn>Export</AppBtn><AppBtn primary hit={5400}>+ Add Candidate</AppBtn></>}
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 90, y: 13, at: 4800, click: true }]}>
+              <div className="grid grid-cols-5 gap-1.5">
+                <AppStat label="Total" value={<Count to={50} />} at={100} />
+                <AppStat label="Compliant" value={<Count to={44} />} at={200} tone="text-emerald-600" />
+                <AppStat label="On assign." value={<Count to={23} />} at={300} />
+                <AppStat label="In progress" value={<Count to={4} />} at={400} tone="text-amber-600" />
+                <AppStat label="New (30d)" value={<Count to={2} />} at={500} tone="text-brand-600" />
+              </div>
+              <div className="tr-rise mt-2 flex items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-2 py-1.5" style={{ animationDelay: '650ms' }}>
+                <span className="flex-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[8px] text-slate-400">Search name, email, town, NMC PIN…</span>
+                <span className="rounded-md border border-slate-200 px-2 py-1 text-[8px] text-slate-500">All compliance ▾</span>
+                <span className="text-[7px] text-slate-400">50 results</span>
+              </div>
+              <div className="mt-1.5 overflow-hidden rounded-lg border border-slate-200/70 bg-white">
+                <div className="grid grid-cols-5 gap-2 border-b border-slate-200/70 bg-slate-50/80 px-2 py-1 text-[7px] font-bold uppercase tracking-wide text-slate-400">
+                  <span>Candidate</span><span>Role</span><span>Status</span><span>Compliance</span><span>Rate</span>
+                </div>
+                {[
+                  { n: 'Chloe Stan', r: 'Registered Nurse', s: 'compliant', t: 'emerald' as const, c: '96%', p: '£22–24/hr' },
+                  { n: 'Mary Begum', r: 'Healthcare Assistant', s: 'on assignment', t: 'teal' as const, c: '92%', p: '£14–16/hr' },
+                  { n: 'Emmanuel Nwosu', r: 'Support Worker', s: 'compliant', t: 'emerald' as const, c: '88%', p: '£13–15/hr' },
+                  { n: 'Adebayo Bello', r: 'Senior HCA', s: 'compliant', t: 'emerald' as const, c: '90%', p: '£15–17/hr' },
+                ].map((w, i) => (
+                  <div key={w.n} className="tr-left grid grid-cols-5 items-center gap-2 border-b border-slate-100 px-2 py-1.5 last:border-0" style={{ animationDelay: `${800 + i * 180}ms` }}>
+                    <LName name={w.n} /><span className="text-[8px] text-slate-600">{w.r}</span>
+                    <AppChip tone={w.t}>{w.s}</AppChip>
+                    <span className="text-[8px] font-semibold text-emerald-600">{w.c}</span>
+                    <span className="text-[8px] text-slate-600">{w.p}</span>
+                  </div>
+                ))}
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Adding a candidate',
-        caption: 'New workers can be keyed in by the office — name, role, contact, pay band, engagement type — or they register themselves through a public link and land in a review queue.',
+        title: 'The Add Candidate form',
+        caption: 'The modal opens and every field fills in one at a time — watch the cursor work through it.',
+        secs: 11,
         visual: (
-          <Stage title="Candidates · adding a worker" narration="Two ways in: the office can key a worker directly — name, role, phone, email, pay expectations — or share a registration link and let the worker complete their own profile and upload documents. Either way it lands in one queue for review.">
-            <Panel title="New candidate" className="tr-pop" scan>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[11px] text-white/70">
-                <span className="tr-rise" style={delay(1)}>Name: <b className="text-white">Test Worker</b></span>
-                <span className="tr-rise" style={delay(2)}>Role: <b className="text-white">HCA</b></span>
-                <span className="tr-rise" style={delay(3)}>Email: <b className="text-white">test@…</b></span>
-                <span className="tr-rise" style={delay(4)}>Pay: <b className="text-white">£14–16/h</b></span>
-                <span className="tr-rise" style={delay(5)}>Engagement: <b className="text-white">PAYE</b></span>
-                <span className="tr-rise" style={delay(6)}>Source: <b className="text-white">Referral</b></span>
+          <Stage title="Candidates · Add Candidate" narration="The Add Candidate modal opens and each field completes in turn — name, contact, role, location, pay preferences, source and NMC PIN for nurses. The cursor finishes on Create candidate; next scene is the compliance checklist.">
+            <Frame nav="Candidates" url="candidates" eyebrow="Recruitment" title="Candidates" sub="Nurses, HCAs and support workers on the Sanitas books."
+              actions={<><AppBtn>Export</AppBtn><AppBtn primary>+ Add Candidate</AppBtn></>}
+              cursor={[
+                { x: 36, y: 33, at: 600 }, { x: 62, y: 33, at: 1550 }, { x: 36, y: 41, at: 2150 },
+                { x: 62, y: 41, at: 2850 }, { x: 36, y: 49, at: 3500 }, { x: 62, y: 49, at: 4150 },
+                { x: 36, y: 57, at: 4750 }, { x: 62, y: 57, at: 5350 }, { x: 36, y: 65, at: 5950 },
+                { x: 62, y: 65, at: 6550 }, { x: 62, y: 79, at: 8200, click: true },
+              ]}>
+              <div className="grid grid-cols-5 gap-1.5">
+                <AppStat label="Total" value="50" /><AppStat label="Compliant" value="44" />
+                <AppStat label="On assign." value="23" /><AppStat label="In progress" value="4" /><AppStat label="New (30d)" value="2" />
               </div>
-            </Panel>
-            <div className="mt-4 flex items-center gap-2">
-              <Chip tone="sky" i={7}>Public link — worker self-registers</Chip>
-              <Chip tone="slate" i={8}>Office keys it directly</Chip>
-            </div>
+              <AppModal title="Add Candidate" sub="Core details now; documents and compliance later." at={500}
+                footer={<><AppBtn>Cancel</AppBtn><AppBtn primary hit={8300}>Create candidate</AppBtn></>}>
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-2">
+                  <TField label="First name" value="Sophie" at={950} />
+                  <TField label="Last name" value="Turner" at={1600} />
+                  <TField label="Email" value="sophie.turner@mail.com" at={2200} />
+                  <TField label="Phone" value="07700 900461" at={2900} />
+                  <SField label="Role" value="Registered Nurse" at={3550} />
+                  <TField label="Town" value="Colchester" at={4200} />
+                  <TField label="Postcode" value="CO4 3XY" at={4800} />
+                  <SField label="Preferred shift" value="Nights" at={5400} />
+                  <SField label="Source" value="Indeed" at={6000} />
+                  <TField label="NMC PIN" value="12A3456B" at={6600} />
+                </div>
+              </AppModal>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'The complete record',
-        caption: 'Each profile holds contact details, payroll reference, bank details, engagement type and the full compliance file — everything invoicing and payroll will later need is captured here once.',
+        title: 'Compliance requirements',
+        caption: 'Straight after creation, the required documents are listed — record what you have, the rest is flagged.',
+        secs: 8,
         visual: (
-          <Stage title="Candidates · inside a profile" narration="Open a worker and everything payroll and invoicing will need is already on the record — payroll reference, bank details, engagement type, NMC PIN for nurses. Capture it once here and payroll export never has to ask again.">
-            <Panel title="Chloe Stan · Registered Nurse" scan>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] text-white/70">
-                <span>Payroll ref: <b className="text-white">SAN-001</b></span><span>Engagement: <b className="text-white">PAYE</b></span>
-                <span>NMC PIN: <b className="text-white">on file</b></span><span>Bank: <b className="text-white">04-00-04 ••••</b></span>
-                <span>Pay band: <b className="text-white">£21–24/h</b></span><span>Travel: <b className="text-white">15 miles</b></span>
-                <span>Transport: <b className="text-white">Own car</b></span><span>Preferred: <b className="text-white">Nights</b></span>
-              </div>
-            </Panel>
-            <div className="mt-3 flex gap-2"><Chip tone="emerald" i={2}>Payroll-ready</Chip><Chip tone="sky" i={3}>NMC verified</Chip></div>
+          <Stage title="Candidates · compliance checklist" narration="Straight after Create, the modal moves to the compliance checklist — everything a nurse needs on file before they can be booked. Record what the worker has — here DBS, right-to-work and training go in — and anything skipped is logged and flagged amber on the profile until it arrives.">
+            <Frame nav="Candidates" url="candidates" eyebrow="Recruitment" title="Candidates" sub="Nurses, HCAs and support workers on the Sanitas books."
+              cursor={[{ x: 60, y: 40, at: 300 }, { x: 63, y: 80, at: 6100, click: true }]}>
+              <AppModal title="Compliance requirements" sub="Sophie Turner needs these on file before she can be booked." at={400}
+                footer={<><AppBtn>Skip for now (logged)</AppBtn><AppBtn primary hit={6200}>Continue</AppBtn></>}>
+                <div className="space-y-1.5">
+                  <CheckItem label="DBS Enhanced" detail="cert 0017823456 · exp 2031" at={1100} />
+                  <CheckItem label="Right to Work" detail="share code verified" at={1900} />
+                  <CheckItem label="Mandatory Training" detail="expires 14/09/2027" at={2700} />
+                  <CheckItem label="NMC PIN" detail="12A3456B · checked" at={3500} />
+                  <CheckItem label="References ×2" at={99999} />
+                </div>
+                <p className="tr-rise mt-2 text-[8px] text-slate-400" style={{ animationDelay: '4300ms' }}>References not yet received — will stay flagged on the profile.</p>
+              </AppModal>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Compliance built in',
-        caption: 'The ring on each profile is the worker\'s live compliance score — it drops when a required document lapses and climbs back the moment staff fix the gap.',
+        title: 'Photo & portal login',
+        caption: 'Optional photo, then create the worker\'s portal login so they can see shifts and offers.',
+        secs: 7,
         visual: (
-          <Stage title="Candidates · compliance score" narration="The ring is the worker's live compliance score — every required document feeds it. When mandatory training hits 38 days out it turns amber; if it lapses, the score drops and bookings refuse until it's fixed. It recalculates itself on every document change.">
-            <div className="flex items-center gap-6">
-              <div className="relative h-28 w-28">
-                <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="rgb(255 255 255 / .08)" strokeWidth="10" />
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="#34d399" strokeWidth="10" strokeLinecap="round"
-                    pathLength={100} strokeDasharray="92 100" className="tr-draw" />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center font-display text-2xl font-bold text-white"><Count to={92} suffix="%" /></span>
-              </div>
-              <div className="flex-1 space-y-1.5">
-                <FillBar i={0} pct={100} label="DBS Enhanced — valid" tone="bg-emerald-400/80" />
-                <FillBar i={1} pct={100} label="Right to Work — valid" tone="bg-emerald-400/80" />
-                <FillBar i={2} pct={62} label="Mandatory Training — 38 days left" tone="bg-amber-400/80" />
-                <FillBar i={3} pct={88} label="NMC PIN — verified" tone="bg-emerald-400/80" />
-              </div>
-            </div>
+          <Stage title="Candidates · portal login" narration="Last step offers a portal login — email and a temporary password — so Sophie can see her offers, submit timesheets and upload documents from her phone. Skip it and you can always add one later from Settings → Accounts.">
+            <Frame nav="Candidates" url="candidates" eyebrow="Recruitment" title="Candidates" sub="Nurses, HCAs and support workers on the Sanitas books."
+              cursor={[{ x: 40, y: 55, at: 300 }, { x: 63, y: 78, at: 4800, click: true }]}>
+              <AppModal title="Portal login" sub="Give Sophie a sign-in for shifts, offers and documents in the worker portal." at={400}
+                footer={<><AppBtn>Skip</AppBtn><AppBtn primary hit={4900}>Done — open profile</AppBtn></>}>
+                <div className="space-y-2">
+                  <TField label="Email (login)" value="sophie.turner@mail.com" at={1000} />
+                  <TField label="Temporary password" value="••••••••••" at={2100} cps={20} />
+                  <p className="tr-rise rounded-md bg-sky-50 px-2 py-1.5 text-[8px] text-sky-700 ring-1 ring-sky-600/20" style={{ animationDelay: '3100ms' }}>
+                    She'll be asked to set her own password on first sign-in.
+                  </p>
+                </div>
+              </AppModal>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Shifts applied & history',
-        caption: 'Scroll down a profile and the whole working relationship is there — shifts worked, timesheets submitted, offers pending, documents and check history — one timeline per worker.',
+        title: 'The finished profile',
+        caption: 'The candidate record — contact, payroll details, and the live compliance ring with documents listed.',
         visual: (
-          <Stage title="Candidates · shifts & history" narration="Scroll down the profile and the worker's whole history is in front of you — shifts they've worked, timesheets submitted, offers still pending, and every register check. When a client calls about a worker, the answer is already on screen.">
-            <div className="space-y-2">
-              <Row i={0}><span className="text-[11px] text-white">Chestnut Grange · Night · 14 Oct</span><Chip tone="emerald" i={1}>Paid</Chip></Row>
-              <Row i={1}><span className="text-[11px] text-white">Oaks Lodge · Day · 17 Oct</span><Chip tone="teal" i={2}>Approved</Chip></Row>
-              <Row i={2}><span className="text-[11px] text-white">Ferndale · Long day · 24 Oct</span><Chip tone="sky" i={3}>Booked</Chip></Row>
-              <Row i={3}><span className="text-[11px] text-white">DBS Update Service check</span><Chip tone="emerald" i={4}>Clear · 15 Oct</Chip></Row>
-            </div>
+          <Stage title="Candidates · the profile" narration="And here's Sophie on the books. Her record holds everything payroll and invoicing will ever need — payroll ref, engagement type, bank — plus the live compliance ring at 75%: DBS, right-to-work and training all valid, references still flagged until they arrive. That flag is why she can't be booked quite yet.">
+            <Frame nav="Candidates" url="candidates/51" eyebrow="Recruitment" title="Sophie Turner" sub="Registered Nurse · Colchester"
+              actions={<><AppBtn>Compliance file</AppBtn><AppBtn primary>Edit</AppBtn></>}>
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="col-span-2 space-y-1.5">
+                  <div className="rounded-lg border border-slate-200/70 bg-white p-2">
+                    <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">Details</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[8px] text-slate-600">
+                      <span className="tr-rise" style={{ animationDelay: '400ms' }}>Payroll ref: <b className="text-ink">SAN-051</b></span>
+                      <span className="tr-rise" style={{ animationDelay: '550ms' }}>Engagement: <b className="text-ink">PAYE</b></span>
+                      <span className="tr-rise" style={{ animationDelay: '700ms' }}>Email: <b className="text-ink">sophie.turner@…</b></span>
+                      <span className="tr-rise" style={{ animationDelay: '850ms' }}>Phone: <b className="text-ink">07700 900461</b></span>
+                      <span className="tr-rise" style={{ animationDelay: '1000ms' }}>NMC PIN: <b className="text-ink">12A3456B</b></span>
+                      <span className="tr-rise" style={{ animationDelay: '1150ms' }}>Preferred: <b className="text-ink">Nights</b></span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200/70 bg-white p-2">
+                    <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">Documents</p>
+                    <AppRow at={300}><span className="text-[8px] text-slate-600">DBS Enhanced · 0017823456</span><AppChip tone="emerald">Valid</AppChip></AppRow>
+                    <AppRow at={450}><span className="text-[8px] text-slate-600">Right to Work</span><AppChip tone="emerald">Valid</AppChip></AppRow>
+                    <AppRow at={600}><span className="text-[8px] text-slate-600">Mandatory Training</span><AppChip tone="emerald">Valid</AppChip></AppRow>
+                    <AppRow at={750}><span className="text-[8px] text-slate-600">References</span><AppChip tone="amber" blink>Missing</AppChip></AppRow>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200/70 bg-white p-2 text-center">
+                  <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">Compliance</p>
+                  <div className="relative mx-auto h-16 w-16">
+                    <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="rgb(15 23 42 / .08)" strokeWidth="11" />
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" strokeWidth="11" strokeLinecap="round"
+                        pathLength={100} strokeDasharray="75 100" className="tr-draw" />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center font-display text-sm font-bold text-ink"><Count to={75} suffix="%" /></span>
+                  </div>
+                  <AppChip tone="amber" at={900}>In progress</AppChip>
+                </div>
+              </div>
+            </Frame>
+          </Stage>
+        ),
+      },
+      {
+        title: 'Shifts get applied',
+        caption: 'Once compliant, Sophie appears in the allocation drawer — offer, accept, booked.',
+        secs: 9,
+        visual: (
+          <Stage title="Candidates · getting booked" narration="Once her references land, Sophie goes compliant and appears automatically in allocation drawers. Here a night-shift request comes in — she's ranked by distance and continuity — the office taps Offer, she accepts on her phone, and the shift writes itself onto her record. That's the whole journey: added, compliant, booked, paid.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Client requests come in by portal or office entry."
+              cursor={[{ x: 50, y: 85, at: 300 }, { x: 84, y: 52, at: 3400, click: true }, { x: 40, y: 60, at: 6200 }, { x: 47, y: 66, at: 7000, click: true }]}>
+              <div className="grid grid-cols-4 gap-1.5">
+                <PipeCol label="New" color="#38bdf8" cards={['Chestnut Grange · Night ×2']} />
+                <PipeCol label="Offers out" color="#fbbf24" cards={['Oaks Lodge · Day']} />
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Ferndale · LD', 'Meadow · Night']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Chestnut · Day']} />
+              </div>
+              <Drawer title="Allocate — Night, 20 Oct" at={1500}>
+                <p className="mb-1.5 text-[7px] font-bold uppercase tracking-wide text-slate-400">Eligible workers</p>
+                <div className="space-y-1">
+                  <AppRow at={1700}><LName name="Sophie Turner" sub="8 min · nights" /><AppBtn primary hit={3500}>Offer</AppBtn></AppRow>
+                  <AppRow at={1850}><LName name="Mary Begum" sub="14 min" /><AppBtn>Offer</AppBtn></AppRow>
+                  <AppRow at={2000} className="opacity-50"><LName name="Test Worker" sub="blocked" /><AppChip tone="red">Refs missing</AppChip></AppRow>
+                </div>
+                <p className="tr-rise mt-2 text-[7px] text-slate-400" style={{ animationDelay: '2400ms' }}>Ranked by distance & continuity — you always choose.</p>
+              </Drawer>
+              <div className="absolute bottom-2 left-[11%] right-2 flex items-center gap-2">
+                <Phone title="Worker portal" at={6300}>
+                  <p className="text-[7px] text-slate-500">Night · Chestnut Grange · 20 Oct</p>
+                  <span className="inline-flex rounded-md bg-brand-600 px-2 py-1 text-[8px] font-semibold text-white tr-hit" style={{ animationDelay: '7100ms' }}>Accept</span>
+                </Phone>
+                <div className="tr-pop rounded-md bg-emerald-50 px-2 py-1 text-[8px] font-semibold text-emerald-700 ring-1 ring-emerald-600/20" style={{ animationDelay: '7600ms' }}>
+                  Sophie Turner — shift booked ✓
+                </div>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -191,47 +325,76 @@ export const MODULES: Module[] = [
     id: 'clients', title: 'Care Homes', subtitle: 'Clients, contacts & site rules', icon: Building2, tint: 'from-teal-500 to-emerald-600',
     scenes: [
       {
-        title: 'One record per home',
-        caption: 'Every client holds contacts, billing email, address — and its own compliance requirements layered on top of the agency baseline. Bookings check both automatically.',
+        title: 'Every home on file',
+        caption: 'The Care Homes list — click through to a client record.',
         visual: (
-          <Stage title="Care homes · site requirements" narration="Every client carries the agency baseline plus its own rules on top — this home adds PMVA training, immunisation history and proof of address. The checker applies both layers automatically on every allocation, so a worker missing PMVA can't be booked here but stays bookable everywhere else.">
-            <Row i={0}><NameBar name="Chestnut Grange" sub="Colchester · Nursing" /><Chip tone="sky">Active client</Chip></Row>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Panel title="Agency baseline"><p className="text-[10px] leading-relaxed text-white/60">DBS Enhanced · Right to Work · Passport/ID · Mandatory Training · NMC for nurses</p></Panel>
-              <Panel title="Chestnut Grange adds"><p className="tr-rise text-[10px] leading-relaxed text-amber-300/90" style={delay(1)}>+ PMVA trained<br />+ Immunisation history<br />+ Proof of address</p></Panel>
-            </div>
+          <Stage title="Care homes · the list" narration="Care Homes is your client book — each home with its contact, site type and open requests. The cursor opens Chestnut Grange; next scene shows what's on a client record.">
+            <Frame nav="Care Homes" url="clients" eyebrow="Recruitment" title="Care Homes" sub="Client organisations and referral partners"
+              actions={<AppBtn primary>+ New client</AppBtn>}
+              cursor={[{ x: 55, y: 90, at: 300 }, { x: 40, y: 45, at: 4600, click: true }]}>
+              <div className="space-y-1.5">
+                <AppRow at={150} className="ring-2 ring-brand-500/40"><LName name="Chestnut Grange" sub="Colchester · Nursing home · 3 open requests" /><AppChip tone="sky">Active</AppChip></AppRow>
+                <AppRow at={300}><LName name="Oaks Lodge" sub="Chelmsford · Residential" /><AppChip tone="sky">Active</AppChip></AppRow>
+                <AppRow at={450}><LName name="Ferndale Court" sub="Ipswich · EMI unit" /><AppChip tone="sky">Active</AppChip></AppRow>
+                <AppRow at={600}><LName name="Meadow View" sub="Braintree · Dementia care" /><AppChip tone="sky">Active</AppChip></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Requests arrive pre-structured',
-        caption: 'Homes raise requests through their own portal — date, shift type, role, quantity — and they land on your pipeline board instantly. No phone tag, no lost emails.',
+        title: 'The client record',
+        caption: 'Contacts, billing, site requirements layered on the agency baseline, and live stats.',
         visual: (
-          <Stage title="Care homes · portal requests" narration="Homes raise requests in their own portal — date, shift type, role, how many workers — and it lands on your pipeline board as a structured card. No phone tag, no scribbled notes; the request is ready to allocate the second it arrives.">
-            <div className="flex items-center gap-2">
-              <Panel className="w-52" title="Client portal" scan>
-                <p className="text-[11px] text-white/70">"2 × night RN, 20–21 Oct"</p>
-                <Chip tone="amber" i={1}>Urgent</Chip>
-              </Panel>
-              <FlowArrow i={2} />
-              <Panel className="flex-1" title="Pipeline — New">
-                <Row i={3}><span className="text-xs text-white">Chestnut Grange · Night ×2</span><Chip tone="sky" i={4}>New</Chip></Row>
-              </Panel>
-            </div>
+          <Stage title="Care homes · client record" narration="Open a home and you get the full relationship — billing email and contacts, fill stats, and crucially the site requirements layered on top of the agency baseline. Chestnut Grange adds PMVA training and immunisation history — the compliance checker applies both layers automatically whenever anyone is allocated there.">
+            <Frame nav="Care Homes" url="clients/3" eyebrow="Recruitment" title="Chestnut Grange" sub="Colchester · Nursing home"
+              actions={<><AppBtn>Portal access</AppBtn><AppBtn primary>Edit</AppBtn></>}>
+              <div className="grid grid-cols-3 gap-1.5">
+                <AppStat label="Shifts this month" value={<Count to={34} />} at={100} />
+                <AppStat label="Fill rate" value={<Count to={96} suffix="%" />} at={250} />
+                <AppStat label="Outstanding" value="£1,142" at={400} />
+              </div>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                <div className="rounded-lg border border-slate-200/70 bg-white p-2">
+                  <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">Agency baseline</p>
+                  <p className="text-[8px] leading-relaxed text-slate-600">DBS Enhanced · Right to Work · ID · Mandatory Training · NMC for nurses</p>
+                </div>
+                <div className="tr-rise rounded-lg border border-amber-200 bg-amber-50/60 p-2" style={{ animationDelay: '600ms' }}>
+                  <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-amber-700">Chestnut Grange adds</p>
+                  <p className="text-[8px] leading-relaxed text-amber-800">+ PMVA trained<br />+ Immunisation history<br />+ Proof of address</p>
+                </div>
+              </div>
+              <div className="mt-1.5 rounded-lg border border-slate-200/70 bg-white p-2">
+                <AppRow at={800}><span className="text-[8px] text-slate-600">Sarah Mills — Manager</span><span className="text-[8px] text-slate-500">billing@chestnut…</span></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Full history per client',
-        caption: 'Invoices, shifts, contacts and request history live on the client record — so when a home calls, you have the whole relationship in front of you.',
+        title: 'Requests from the portal',
+        caption: 'Homes raise requests in their own portal — it lands on your pipeline instantly.',
         visual: (
-          <Stage title="Care homes · client record" narration="The client record is the whole relationship on one page: shifts this month, fill rate, invoices outstanding, and every request they've raised. When the home calls, the answer is already on your screen — no digging through email.">
-            <div className="grid grid-cols-3 gap-2">
-              <Panel title="Shifts"><Stat label="This month" value={<Count to={34} />} i={0} /></Panel>
-              <Panel title="Invoiced"><Stat label="Outstanding" value={<Count to={2} />} i={1} /></Panel>
-              <Panel title="Fill rate"><Stat label="October" value={<Count to={96} suffix="%" />} i={2} /></Panel>
-            </div>
-            <Row i={3}><span className="text-xs text-white">INV-2026-0001 · £1,142.00</span><Chip tone="emerald" i={4}>Paid</Chip></Row>
+          <Stage title="Care homes · portal to pipeline" narration="When the home needs cover, they don't phone — they raise it in their portal: date, shift type, how many workers, urgent if needed. It lands on your pipeline board as a New card, ready to allocate. No phone tag, nothing lost in email.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="A portal request arriving live">
+              <div className="grid grid-cols-4 gap-1.5">
+                <PipeCol label="New" color="#38bdf8" cards={['Oaks Lodge · Day']} glow />
+                <PipeCol label="Offers out" color="#fbbf24" cards={['Ferndale · Night']} />
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Chestnut · LD', 'Meadow · Day']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Oaks · Night']} />
+              </div>
+              <div className="absolute bottom-2 left-[11%] flex items-end gap-2">
+                <Phone title="Client portal" at={400}>
+                  <p className="text-[7px] font-semibold text-ink">New request</p>
+                  <p className="text-[7px] text-slate-500">2 × Night RN — 20–21 Oct</p>
+                  <AppChip tone="red" at={900}>Urgent</AppChip>
+                  <span className="mt-1 inline-flex rounded-md bg-brand-600 px-2 py-1 text-[8px] font-semibold text-white">Send request</span>
+                </Phone>
+                <div className="tr-pop mb-1 rounded-md bg-white px-2 py-1 text-[8px] font-semibold text-ink shadow ring-1 ring-slate-200" style={{ animationDelay: '2600ms' }}>
+                  Chestnut Grange · Night ×2 <span className="text-sky-600">→ New</span>
+                </div>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -243,46 +406,127 @@ export const MODULES: Module[] = [
     scenes: [
       {
         title: 'The pipeline board',
-        caption: 'Requests sit in colour-coded columns by their furthest outstanding stage — New, Offers out, Part-filled, Booked — so the room can see at a glance what needs doing.',
+        caption: 'Colour-coded columns by stage — cards move themselves as work progresses.',
         visual: (
-          <Stage title="Requests · the board" narration="Every request is a card in a colour-coded column — New in blue, Offers out in amber, Part-filled in orange, Booked in teal. Cards move themselves as work progresses, so the board is always the true state of play, not a stale list someone forgot to update.">
-            <KanbanMove cols={PIPE} card={<span>Ferndale Court · Day ×1</span>} dwell={1200} />
-            <div className="mt-8 grid grid-cols-2 gap-2 text-[10px] text-white/60">
-              <p className="tr-rise" style={delay(1)}>▸ Cards show fill progress (1/7), offers out, worker names</p>
-              <p className="tr-rise" style={delay(2)}>▸ Allocate button on cards that still need workers</p>
-              <p className="tr-rise" style={delay(3)}>▸ Awaiting-timesheet cards jump straight to Timesheets</p>
-              <p className="tr-rise" style={delay(4)}>▸ Ready-to-invoice cards jump to Invoicing</p>
-            </div>
+          <Stage title="Requests · the board" narration="The Requests page opens on the pipeline board — every request a card in a colour-coded column, from blue New through amber Offers to teal Booked and beyond. Cards move themselves as work happens. The cursor clicks Allocate on the night-cover card.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Client requests come in by portal or office entry — you decide who goes out."
+              actions={<><AppBtn>↻</AppBtn><AppBtn primary>+ Log request</AppBtn></>}
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 21, y: 40, at: 4800, click: true }]}>
+              <TabBar tabs={['Pipeline', 'Requests (3 open)', 'Availability board']} active="Pipeline" />
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className="min-w-0 rounded-lg bg-slate-200/50 p-1">
+                  <p className="mb-1 border-t-2 border-sky-400 px-1 pt-1 text-[7px] font-bold uppercase tracking-wide text-slate-600">New 2</p>
+                  <div className="space-y-1">
+                    <div className="rounded bg-white p-1 shadow-sm ring-1 ring-brand-400/60">
+                      <p className="truncate text-[7px] font-semibold text-ink">Chestnut Grange · Night ×2</p>
+                      <p className="text-[6px] text-slate-400">Mon 20 Oct · RN · <span className="font-bold text-red-500">URGENT</span></p>
+                      <span className="mt-0.5 inline-flex rounded-md bg-brand-600 px-1.5 py-0.5 text-[7px] font-semibold text-white tr-hit" style={{ animationDelay: '4900ms' }}>Allocate</span>
+                    </div>
+                    <div className="rounded bg-white p-1 shadow-sm ring-1 ring-slate-200/60">
+                      <p className="truncate text-[7px] font-semibold text-ink">Meadow View · Day</p>
+                      <p className="text-[6px] text-slate-400">Wed 22 Oct · HCA</p>
+                    </div>
+                  </div>
+                </div>
+                <PipeCol label="Offers out" color="#fbbf24" cards={['Oaks Lodge · Day', 'Ferndale · Early']} />
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Chestnut · LD', 'Meadow · Night', 'Oaks · Night']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Ferndale · Day']} />
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Eligible workers, ranked by context',
-        caption: 'Open a request and the allocation drawer lists workers who are free, compliant and closest — with travel distance, continuity and first-choice flags. You pick; the system never auto-assigns.',
+        title: 'Choosing who to offer',
+        caption: 'The allocation drawer lists only free, compliant workers — ranked by distance and continuity.',
+        secs: 8,
         visual: (
-          <Stage title="Requests · the allocation drawer" narration="Open a request and the drawer lists only workers who are free and compliant for that home — ranked by travel time and continuity, with first-choice workers flagged. The system filters and suggests; a human always makes the call. Non-compliant workers never even reach the list.">
-            <Panel title="Eligible for Chestnut Grange · Night" scan>
-              <div className="space-y-1.5">
-                <Row i={0}><NameBar name="Chloe Stan" sub="8 min away" /><Chip tone="emerald" i={1}>First choice</Chip></Row>
-                <Row i={1}><NameBar name="Mary Begum" sub="14 min away" /><Chip tone="sky" i={2}>Available</Chip></Row>
-                <Row i={2}><NameBar name="Emmanuel Nwosu" sub="31 min" /><Chip tone="amber" i={3}>Far</Chip></Row>
+          <Stage title="Requests · the allocation drawer" narration="The drawer lists only workers who are free that night and compliant for that home — ranked by travel time and continuity, first-choice workers flagged. Sophie tops the list at 8 minutes; a worker missing references can't even be offered — the system says exactly why. The cursor taps Offer on Sophie.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Allocate — Chestnut Grange · Night, Mon 20 Oct"
+              cursor={[{ x: 50, y: 88, at: 300 }, { x: 88, y: 34, at: 4200, click: true }]}>
+              <TabBar tabs={['Pipeline', 'Requests (3 open)', 'Availability board']} active="Pipeline" />
+              <div className="grid grid-cols-4 gap-1.5 opacity-60">
+                <PipeCol label="New" color="#38bdf8" cards={['Chestnut · Night ×2']} />
+                <PipeCol label="Offers out" color="#fbbf24" cards={['Oaks · Day']} />
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Chestnut · LD']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Ferndale · Day']} />
               </div>
-            </Panel>
+              <Drawer title="Eligible workers" at={400}>
+                <p className="mb-1.5 text-[7px] text-slate-500">Night · 20 Oct · Registered Nurse · Chestnut Grange</p>
+                <div className="space-y-1">
+                  <AppRow at={700} className="ring-1 ring-emerald-300">
+                    <LName name="Sophie Turner" sub="8 min · worked here 12×" />
+                    <span className="flex items-center gap-1"><AppChip tone="emerald">1st choice</AppChip><AppBtn primary hit={4300}>Offer</AppBtn></span>
+                  </AppRow>
+                  <AppRow at={900}><LName name="Mary Begum" sub="14 min · worked here 3×" /><AppBtn>Offer</AppBtn></AppRow>
+                  <AppRow at={1100}><LName name="Adebayo Bello" sub="22 min" /><AppBtn>Offer</AppBtn></AppRow>
+                  <AppRow at={1500} className="opacity-55"><LName name="Test Worker" sub="cannot be offered" /><AppChip tone="red">Refs missing</AppChip></AppRow>
+                </div>
+                <div className="tr-pop mt-2 rounded-md bg-emerald-50 px-2 py-1.5 text-[8px] font-semibold text-emerald-700 ring-1 ring-emerald-600/20" style={{ animationDelay: '5100ms' }}>
+                  Offer sent — WhatsApp + email queued
+                </div>
+              </Drawer>
+            </Frame>
           </Stage>
         ),
       },
       {
         title: 'Offer → accept → booked',
-        caption: 'Send the offer by WhatsApp or email from the outbox. When the worker accepts in their portal, the shift is created, the calendar updates and the pipeline card turns teal — all in one motion.',
+        caption: 'The worker taps Accept on their phone — the shift writes itself and the card turns teal.',
+        secs: 8,
         visual: (
-          <Stage title="Requests · offer to booked" narration="Send the offer by WhatsApp or email straight from the outbox. The worker taps Accept on their phone, the shift writes itself onto the calendar, and the pipeline card turns teal — one acceptance, three things done, no re-keying.">
-            <div className="flex items-center gap-2">
-              <Panel className="flex-1" title="Worker's phone"><p className="text-[10px] text-white/60">Night · Chestnut Grange</p><Chip tone="emerald" i={0} pulse>Accept</Chip></Panel>
-              <FlowArrow i={1} />
-              <Panel className="flex-1" title="Shift created"><Row i={2}><span className="text-[10px] text-white">Mon 20 Oct · Night</span><Chip tone="teal" i={3}>Booked</Chip></Row></Panel>
-              <FlowArrow i={4} />
-              <Panel className="w-28" title="Pipeline"><Chip tone="teal" i={5}>Booked</Chip></Panel>
-            </div>
+          <Stage title="Requests · offer to booked" narration="Sophie's phone gets the offer with the shift details. One tap on Accept — and watch the board: the card flips to teal Booked, the shift lands on the calendar, and it's on her profile. One acceptance, three things done, no re-keying.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Chestnut Grange · Night ×2"
+              cursor={[{ x: 30, y: 60, at: 300 }, { x: 28, y: 66, at: 4000, click: true }]}>
+              <div className="grid grid-cols-4 gap-1.5">
+                <PipeCol label="New" color="#38bdf8" cards={['Meadow · Day']} />
+                <div className="min-w-0 rounded-lg bg-slate-200/50 p-1">
+                  <p className="mb-1 border-t-2 border-amber-400 px-1 pt-1 text-[7px] font-bold uppercase tracking-wide text-slate-600">Offers out 1</p>
+                  <div className="rounded bg-white p-1 shadow-sm ring-1 ring-slate-200/60">
+                    <p className="truncate text-[7px] font-semibold text-ink">Chestnut · Night</p>
+                    <p className="text-[6px] text-slate-400">Sophie Turner</p>
+                    <CycleChip states={[{ label: 'Offered', tone: 'amber' }, { label: 'Offered', tone: 'amber' }, { label: 'Offered', tone: 'amber' }, { label: 'Accepted ✓', tone: 'emerald' }]} ms={1100} />
+                  </div>
+                </div>
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Chestnut · LD', 'Meadow · Night']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Ferndale · Day']} />
+              </div>
+              <div className="absolute bottom-2 left-[11%] flex items-end gap-2">
+                <Phone title="Worker portal — Sophie" at={300}>
+                  <p className="text-[7px] font-bold text-ink">Shift offer</p>
+                  <p className="text-[7px] text-slate-500">Chestnut Grange · Night<br />Mon 20 Oct · 19:00–07:30</p>
+                  <span className="inline-flex rounded-md bg-brand-600 px-2 py-1 text-[8px] font-semibold text-white tr-hit" style={{ animationDelay: '4100ms' }}>Accept</span>
+                  <span className="ml-1 inline-flex rounded-md bg-white px-2 py-1 text-[8px] font-semibold text-slate-400 ring-1 ring-slate-200">Decline</span>
+                </Phone>
+                <div className="tr-pop mb-1 rounded-md bg-emerald-50 px-2 py-1 text-[8px] font-semibold text-emerald-700 ring-1 ring-emerald-600/20" style={{ animationDelay: '5200ms' }}>
+                  Booked → shift created, card → Booked ✓
+                </div>
+              </div>
+            </Frame>
+          </Stage>
+        ),
+      },
+      {
+        title: 'Logging a request manually',
+        caption: 'Office staff can key a request directly — same card, same pipeline.',
+        secs: 9,
+        visual: (
+          <Stage title="Requests · Log request" narration="Phone-ins work too — Log request opens the same form the client portal submits: home, date, shift type, role, how many, urgent flag. Whatever the source, it lands as an identical card on the board, ready for allocation.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Office entry"
+              actions={<><AppBtn>↻</AppBtn><AppBtn primary>+ Log request</AppBtn></>}
+              cursor={[{ x: 55, y: 85, at: 300 }, { x: 36, y: 38, at: 900 }, { x: 62, y: 38, at: 2000 }, { x: 36, y: 46, at: 3100 }, { x: 62, y: 46, at: 4000 }, { x: 36, y: 54, at: 4900 }, { x: 63, y: 76, at: 7000, click: true }]}>
+              <AppModal title="Log request" sub="Client asks for cover — key it here and it lands on the board." at={400}
+                footer={<><AppBtn>Cancel</AppBtn><AppBtn primary hit={7100}>Create request</AppBtn></>}>
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-2">
+                  <SField label="Care home" value="Oaks Lodge" at={950} />
+                  <TField label="Date" value="23/10/2026" at={2100} />
+                  <SField label="Shift type" value="Long day" at={3150} />
+                  <SField label="Role" value="Healthcare Assistant" at={4100} />
+                  <TField label="Workers needed" value="2" at={5000} />
+                  <SField label="Urgency" value="Normal" at={5700} />
+                </div>
+              </AppModal>
+            </Frame>
           </Stage>
         ),
       },
@@ -293,49 +537,87 @@ export const MODULES: Module[] = [
     id: 'neuven', title: 'Neuven Feed (Beta)', subtitle: 'External jobs, imported clean', icon: PlugZap, tint: 'from-amber-500 to-orange-600',
     scenes: [
       {
-        title: 'CSV in, jobs out',
-        caption: 'Export your Neuven allocations to CSV and drop it in. Every row is validated live — client matched, date parsed, shift type normalised — before a single request is created.',
+        title: 'The Neuven page',
+        caption: 'Beta section — CSV import working today, connection profile ready for API access.',
         visual: (
-          <Stage title="Neuven · import preview" narration="Export your Neuven jobs to CSV and drop it in — every row is validated before anything is written. Green rows name the shift they'll create; red rows say exactly why they're rejected — no matching client, a duplicate — so a bad file can never sneak through.">
-            <Panel title="Import preview" scan>
-              <div className="space-y-1.5">
-                <Row i={0}><span className="text-xs text-white">NV-9001 · Chestnut Grange · 20 Oct · Night</span><Chip tone="emerald" i={1}>Import</Chip></Row>
-                <Row i={1}><span className="text-xs text-white">NV-9002 · Chestnut Grange · 21 Oct · Long day</span><Chip tone="emerald" i={2}>Import</Chip></Row>
-                <Row i={2}><span className="text-xs text-white">NV-9003 · "Nowhere Home" · Day</span><Chip tone="red" i={3}>No client match</Chip></Row>
-                <Row i={3}><span className="text-xs text-white">NV-9001 · repeated row</span><Chip tone="red" i={4}>Duplicate</Chip></Row>
+          <Stage title="Neuven · the page" narration="Neuven is marked Beta — honest about where it stands. CSV import works today: export your Neuven jobs and drop the file in. Below, the connection profile stores the endpoint and key ready for the day Neuven grant API access — Test connection probes it for real, so the plumbing is proven, not promised.">
+            <Frame nav="Requests" url="neuven" title="Neuven feed" sub="Neutral-vendor shift feed — CSV import today, live API sync when Neuven grant access.">
+              <div className="tr-rise flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5" style={{ animationDelay: '200ms' }}>
+                <AppChip tone="amber">Beta</AppChip>
+                <span className="text-[8px] text-amber-800">No public API — CSV import is live; automatic sync awaits Neuven's integration agreement.</span>
               </div>
-            </Panel>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                <div className="rounded-lg border border-slate-200/70 bg-white p-2">
+                  <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">Connection profile</p>
+                  <p className="text-[8px] text-slate-600">Endpoint: <b className="text-ink">api.neuven…</b> · Key stored</p>
+                  <div className="mt-1.5"><CycleChip states={[{ label: 'Probing…', tone: 'amber' }, { label: 'Unreachable', tone: 'red' }, { label: 'CSV active', tone: 'emerald' }]} ms={1500} /></div>
+                </div>
+                <div className="rounded-lg border border-slate-200/70 bg-white p-2">
+                  <p className="mb-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">CSV import</p>
+                  <p className="text-[8px] text-slate-600">Drop a Neuven export — every row validated before it lands.</p>
+                  <AppBtn primary className="mt-1.5">Choose CSV…</AppBtn>
+                </div>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Straight into the pipeline',
-        caption: 'Committed rows become real pending requests, tagged with their Neuven reference — they appear on the board as New and go through the same offer-and-allocate flow as anything else.',
+        title: 'Import preview → commit',
+        caption: 'Every row validated before anything is written — green rows land, red rows say why not.',
+        secs: 8,
         visual: (
-          <Stage title="Neuven · onto the board" narration="Committed rows become real pending requests on the pipeline, tagged with their Neuven reference — they allocate exactly like internal work. And the reference doubles as a lock: the same Neuven job can never be imported twice.">
-            <div className="flex items-center gap-2">
-              <Panel className="w-44" title="Neuven CSV"><p className="text-xs text-white/70">NV-9001 · Night ×2</p><p className="mt-1 text-xs text-white/70">NV-9002 · Long day</p></Panel>
-              <FlowArrow i={1} />
-              <Panel className="flex-1" title="Requests board">
-                <Row i={2}><span className="text-xs text-white">Chestnut Grange · Night ×2 <span className="text-white/40">NV-9001</span></span><Chip tone="sky" i={3}>New</Chip></Row>
-              </Panel>
-            </div>
+          <Stage title="Neuven · import preview" narration="The preview shows exactly what the file will do before it does it: green rows name the shift they'll create; red rows say why they're rejected — no matching client, duplicate reference. The cursor commits — two jobs land on the pipeline, tagged with their Neuven refs so they can never import twice.">
+            <Frame nav="Requests" url="neuven" title="Neuven feed" sub="Import preview — 4 rows"
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 86, y: 82, at: 4600, click: true }]}>
+              <div className="overflow-hidden rounded-lg border border-slate-200/70 bg-white">
+                <div className="grid grid-cols-4 gap-2 border-b border-slate-200/70 bg-slate-50/80 px-2 py-1 text-[7px] font-bold uppercase tracking-wide text-slate-400">
+                  <span>Ref</span><span>Job</span><span>Shift</span><span>Result</span>
+                </div>
+                {[
+                  { ref: 'NV-9001', j: 'Chestnut Grange', s: 'Night · 20 Oct', ok: true, msg: 'Import — night ×2' },
+                  { ref: 'NV-9002', j: 'Chestnut Grange', s: 'Long day · 21 Oct', ok: true, msg: 'Import — long day' },
+                  { ref: 'NV-9003', j: '"Nowhere Home"', s: 'Day · 22 Oct', ok: false, msg: 'No client match' },
+                  { ref: 'NV-9001', j: 'Chestnut Grange', s: '—', ok: false, msg: 'Duplicate ref' },
+                ].map((r, i) => (
+                  <div key={i} className="tr-left grid grid-cols-4 items-center gap-2 border-b border-slate-100 px-2 py-1.5 last:border-0" style={{ animationDelay: `${400 + i * 250}ms` }}>
+                    <span className="font-mono text-[8px] text-slate-500">{r.ref}</span>
+                    <span className="text-[8px] text-ink">{r.j}</span>
+                    <span className="text-[8px] text-slate-500">{r.s}</span>
+                    <AppChip tone={r.ok ? 'emerald' : 'red'}>{r.msg}</AppChip>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex items-center justify-end gap-1.5">
+                <AppBtn>Discard</AppBtn>
+                <AppBtn primary hit={4700}>Import 2 jobs</AppBtn>
+              </div>
+              <Toast at={5400}>2 requests created → pipeline</Toast>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Automatic sync, when it exists',
-        caption: 'Neuven don\'t publish a public API — so the connection profile stores endpoint and credentials ready for the day access is agreed. Test connection probes it live so the plumbing is proven, not promised.',
+        title: 'Straight onto the board',
+        caption: 'Committed jobs become real pending requests — allocate them like any other work.',
         visual: (
-          <Stage title="Neuven · automatic connection" narration="Neuven don't publish a public API — so the connection profile stores endpoint, org ref and key ready for the day access is agreed. Test connection really probes the endpoint so the plumbing is proven, not promised; until then CSV import does the job.">
-            <Panel title="Connection profile">
-              <div className="space-y-1.5 text-[11px] text-white/70">
-                <p className="tr-rise" style={delay(0)}>Endpoint: <b className="text-white">api.neuven…</b></p>
-                <p className="tr-rise" style={delay(1)}>Org ref: <b className="text-white">SANITAS-001</b></p>
-                <p className="tr-rise" style={delay(2)}>API key: <b className="text-white">stored server-side</b></p>
+          <Stage title="Neuven · jobs become requests" narration="Committed rows are real pending requests — on the board as New, tagged with their Neuven reference. They allocate exactly like internal work, and the reference doubles as a lock: the same Neuven job can never be imported twice.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Imported jobs tagged NV-">
+              <TabBar tabs={['Pipeline', 'Requests (4 open)', 'Availability board']} active="Pipeline" />
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className="min-w-0 rounded-lg bg-slate-200/50 p-1">
+                  <p className="mb-1 border-t-2 border-sky-400 px-1 pt-1 text-[7px] font-bold uppercase tracking-wide text-slate-600">New 3</p>
+                  <div className="space-y-1">
+                    {['Chestnut · Night ×2 · NV-9001', 'Chestnut · Long day · NV-9002', 'Meadow View · Day'].map((c, i) => (
+                      <div key={i} className="tr-rise rounded bg-white px-1.5 py-1 text-[7px] font-medium text-ink shadow-sm ring-1 ring-slate-200/60" style={{ animationDelay: `${400 + i * 250}ms` }}>{c}</div>
+                    ))}
+                  </div>
+                </div>
+                <PipeCol label="Offers out" color="#fbbf24" cards={['Oaks · Day']} />
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Chestnut · LD']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Ferndale · Day']} />
               </div>
-              <div className="mt-3"><CycleChip states={[{ label: 'Probing…', tone: 'amber' }, { label: 'Unreachable', tone: 'red' }, { label: 'CSV active', tone: 'emerald' }]} ms={1600} /></div>
-            </Panel>
+            </Frame>
           </Stage>
         ),
       },
@@ -346,47 +628,75 @@ export const MODULES: Module[] = [
     id: 'timesheets', title: 'Timesheets', subtitle: 'Signatures, approval, audit', icon: Clock3, tint: 'from-cyan-500 to-sky-600',
     scenes: [
       {
-        title: 'Three-way sign-off',
-        caption: 'The worker submits hours, the site supervisor countersigns by secure phone link, and the office approves. Each step is timestamped and locked behind the last.',
+        title: 'The timesheets queue',
+        caption: 'Every completed shift waiting for its three signatures.',
         visual: (
-          <Stage title="Timesheets · the sign-off chain" narration="Three signatures in order: the worker submits hours, the site countersigns by a secure phone link — no app needed — and the office approves. That approval is the gate: it freezes the pay and charge snapshot so reports can never be rewritten by a later rate change.">
-            <div className="flex items-center gap-1.5">
-              <Panel className="flex-1" title="Worker"><Chip tone="sky" i={0}>Submitted</Chip><p className="mt-1 text-[10px] text-white/60">13.5h · night</p></Panel>
-              <FlowArrow i={1} />
-              <Panel className="flex-1" title="Site sign"><Chip tone="violet" i={2}>Signed</Chip></Panel>
-              <FlowArrow i={3} />
-              <Panel className="flex-1" title="Office"><Chip tone="emerald" i={4} pulse>Approve</Chip></Panel>
-            </div>
-            <div className="relative mt-4">
-              <Panel title="Financial snapshot" scan><p className="text-xs text-white/70">Pay £283.50 · Charge £425.25 · NI + fee — frozen</p></Panel>
-              <Stamp delay={2000}>Approved</Stamp>
-            </div>
+          <Stage title="Timesheets · the queue" narration="The Timesheets page is the approval queue — every completed shift with its signature state. Submitted means the worker's hours are in; signed means the site countersigned by phone link; approved means the office locked it. The cursor opens Chloe's shift.">
+            <Frame nav="Timesheets" url="timesheets" title="Timesheets" sub="Approve and pay completed shifts."
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 45, y: 46, at: 4600, click: true }]}>
+              <TabBar tabs={['Awaiting approval (3)', 'Approved', 'Queries']} active="Awaiting approval (3)" />
+              <div className="space-y-1">
+                <AppRow at={200} className="ring-2 ring-brand-500/40"><LName name="Chloe Stan" sub="Chestnut Grange · Night · 13.5h" /><span className="flex gap-1"><AppChip tone="sky">Worker ✓</AppChip><AppChip tone="violet">Site ✓</AppChip><AppChip tone="amber" blink>Approve</AppChip></span></AppRow>
+                <AppRow at={400}><LName name="Mary Begum" sub="Oaks Lodge · Day · 11h" /><span className="flex gap-1"><AppChip tone="sky">Worker ✓</AppChip><AppChip tone="slate">Site pending</AppChip></span></AppRow>
+                <AppRow at={600}><LName name="Adebayo Bello" sub="Ferndale · Long day · 12h" /><span className="flex gap-1"><AppChip tone="sky">Worker ✓</AppChip><AppChip tone="violet">Site ✓</AppChip><AppChip tone="amber" blink>Approve</AppChip></span></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Uplifts calculated for you',
-        caption: 'Night, weekend and bank-holiday multipliers apply automatically — highest-wins by default — so a Saturday night is priced correctly without anyone reaching for a calculator.',
+        title: 'Three signatures, one gate',
+        caption: 'Worker submits, site countersigns by phone link, office approves — approval freezes the money.',
+        secs: 9,
         visual: (
-          <Stage title="Timesheets · automatic uplifts" narration="Night, weekend and bank-holiday multipliers apply themselves — highest-wins by default — and they apply to both the worker's pay and the client's charge at once. Nobody reaches for a calculator; the uplift rule stamps onto the snapshot at approval.">
-            <div className="space-y-2">
-              <Row i={0}><span className="text-xs text-white">Mon day · 11h</span><span className="tr-rise text-xs text-white/70" style={delay(1)}>£231.00</span></Row>
-              <Row i={1}><span className="text-xs text-white">Sat night · 13.5h</span><span className="tr-rise text-xs text-amber-300" style={delay(2)}>×1.25 → £354.38</span></Row>
-              <Row i={2}><span className="text-xs text-white">Bank holiday · 12h</span><span className="tr-rise text-xs text-orange-300" style={delay(3)}>×1.50 → £378.00</span></Row>
-            </div>
+          <Stage title="Timesheets · approve" narration="Three signatures in order — worker submits, site countersigns by a secure phone link, office approves. Approval is the gate: it freezes the pay and charge snapshot forever, so a rate change next month can never rewrite this shift's numbers. The cursor hits Approve.">
+            <Frame nav="Timesheets" url="timesheets" title="Timesheets" sub="Chloe Stan — Night, 14 Oct · Chestnut Grange"
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 88, y: 74, at: 5400, click: true }]}>
+              <div className="rounded-lg border border-slate-200/70 bg-white p-2.5">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-md bg-sky-50 p-2 ring-1 ring-sky-600/20">
+                    <p className="text-[7px] font-bold uppercase text-sky-700">Worker</p>
+                    <p className="text-[8px] text-ink">Submitted · 13.5h</p>
+                    <AppChip tone="sky" at={300}>Signed</AppChip>
+                  </div>
+                  <div className="rounded-md bg-violet-50 p-2 ring-1 ring-violet-600/20">
+                    <p className="text-[7px] font-bold uppercase text-violet-700">Site sign-off</p>
+                    <p className="text-[8px] text-ink">Phone link · S. Mills</p>
+                    <AppChip tone="violet" at={600}>Signed</AppChip>
+                  </div>
+                  <div className="rounded-md bg-amber-50 p-2 ring-1 ring-amber-600/20">
+                    <p className="text-[7px] font-bold uppercase text-amber-700">Office</p>
+                    <p className="text-[8px] text-ink">Jill — awaiting</p>
+                    <AppChip tone="amber" at={900}>Pending</AppChip>
+                  </div>
+                </div>
+                <div className="mt-2 rounded-md bg-slate-50 p-2 text-[8px] text-slate-600">
+                  Sat night → ×1.25 uplift · Pay <b className="text-ink">£354.38</b> · Charge <b className="text-ink">£531.56</b>
+                  <span className="tr-pop ml-1 rounded bg-amber-100 px-1 text-[7px] font-bold text-amber-700" style={{ animationDelay: '5800ms' }}>SNAPSHOT FROZEN</span>
+                </div>
+                <div className="mt-2 flex justify-end gap-1.5">
+                  <AppBtn>Raise query</AppBtn>
+                  <AppBtn primary hit={5500}>Approve timesheet</AppBtn>
+                </div>
+              </div>
+              <Toast at={6300}>Approved — snapshot frozen ✓</Toast>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Queries pause one line, not the week',
-        caption: 'Wrong hours? Raise a query against that single timesheet — it pauses while the rest of the week flows through. Resolve, resubmit, approve, with the audit trail intact.',
+        title: 'Queries pause one line',
+        caption: 'Wrong hours? Query pauses that timesheet alone — the rest of the week flows through.',
         visual: (
-          <Stage title="Timesheets · raising a query" narration="Hours look wrong? Query that one timesheet and it pauses alone — the rest of the week keeps flowing to approval. Resolve the query, the worker resubmits, and it rejoins the queue with the whole exchange on the audit trail.">
-            <div className="space-y-2">
-              <Row i={0}><NameBar name="Mary Begum" sub="Day · 21 Oct · client says 9h not 11h" /><Chip tone="amber" i={1} blink>Query open</Chip></Row>
-              <Row i={1}><NameBar name="Chloe Stan" sub="Night · 20 Oct" /><Chip tone="emerald" i={2}>Approved</Chip></Row>
-              <Row i={2}><NameBar name="Adebayo Bello" sub="Early · 22 Oct" /><Chip tone="emerald" i={3}>Approved</Chip></Row>
-            </div>
+          <Stage title="Timesheets · raising a query" narration="If hours look wrong, query that one timesheet — it pauses alone while the rest of the week keeps approving. Resolve it, the worker resubmits, and it rejoins the queue with the whole exchange on the audit trail.">
+            <Frame nav="Timesheets" url="timesheets" title="Timesheets" sub="One queried, the rest flow through">
+              <div className="space-y-1">
+                <AppRow at={200} className="border-amber-300 bg-amber-50/50"><LName name="Mary Begum" sub="Day · 21 Oct · client says 9h not 11h" /><AppChip tone="amber" blink>Query open</AppChip></AppRow>
+                <AppRow at={450}><LName name="Chloe Stan" sub="Night · 20 Oct" /><AppChip tone="emerald">Approved</AppChip></AppRow>
+                <AppRow at={700}><LName name="Adebayo Bello" sub="Early · 22 Oct" /><AppChip tone="emerald">Approved</AppChip></AppRow>
+                <AppRow at={950}><LName name="Emmanuel Nwosu" sub="Night · 23 Oct" /><AppChip tone="emerald">Approved</AppChip></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -397,54 +707,108 @@ export const MODULES: Module[] = [
     id: 'invoicing', title: 'Invoicing', subtitle: 'Bill, send, reconcile', icon: PoundSterling, tint: 'from-emerald-500 to-green-600',
     scenes: [
       {
-        title: 'Invoices build themselves',
-        caption: 'Pick a client and a period — every approved, unbilled shift becomes a line item with hours, rate and uplift already resolved. Totals count themselves; numbering is automatic.',
+        title: 'The invoices tab',
+        caption: 'Every invoice with its state — draft, sent, paid — and overdue counts.',
+        secs: 8,
         visual: (
-          <Stage title="Invoicing · creating an invoice" narration="Pick a client and a period — every approved, unbilled shift becomes a line item with hours, rate and uplift already resolved from the frozen snapshot. The total counts itself and numbering is automatic, so an invoice takes seconds, not an afternoon.">
-            <Panel title="INV-2026-0002 — Chestnut Grange" className="tr-sweep">
-              <div className="space-y-1.5">
-                <Row i={0}><span className="text-[11px] text-white">Chloe Stan · 14 Oct · night 13.5h</span><span className="text-[11px] text-emerald-300">£425.25</span></Row>
-                <Row i={1}><span className="text-[11px] text-white">Mary Begum · 15 Oct · long day 12h</span><span className="text-[11px] text-emerald-300">£312.00</span></Row>
-                <Row i={2}><span className="text-[11px] text-white">Adebayo Bello · 16 Oct · day 9h</span><span className="text-[11px] text-emerald-300">£189.00</span></Row>
+          <Stage title="Invoicing · the list" narration="Invoicing & payroll — four tabs across the top. The list shows every invoice with its status and days overdue in red. The cursor clicks New invoice — next scene builds one.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Invoices build only from approved timesheets (6.10c)."
+              actions={<><AppBtn>↻</AppBtn><AppBtn primary hit={5000}>+ New invoice</AppBtn></>}
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 90, y: 13, at: 4400, click: true }]}>
+              <TabBar tabs={['Invoices', 'Aged debtors', 'Payroll export', 'Margin']} active="Invoices" />
+              <div className="overflow-hidden rounded-lg border border-slate-200/70 bg-white">
+                {[
+                  { n: 'INV-2026-0001 — Ferndale Court', d: 'Issued 12 Oct · due 26 Oct', v: '£1,142.00', s: 'paid' as const },
+                  { n: 'INV-2026-0002 — Chestnut Grange', d: 'Issued 15 Oct · due 29 Oct', v: '£926.25', s: 'sent' as const },
+                  { n: 'INV-2026-0003 — Oaks Lodge', d: 'Issued 02 Sep · due 16 Sep · 34d overdue', v: '£2,310.00', s: 'sent' as const, od: true },
+                  { n: 'INV-2026-0004 — Meadow View', d: 'Draft', v: '£410.40', s: 'draft' as const },
+                ].map((r, i) => (
+                  <div key={r.n} className="tr-left flex items-center justify-between gap-2 border-b border-slate-100 px-2.5 py-2 last:border-0" style={{ animationDelay: `${300 + i * 200}ms` }}>
+                    <span><span className="block text-[9px] font-medium text-ink">{r.n}</span>
+                      <span className={`block text-[7px] ${r.od ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>{r.d}</span></span>
+                    <span className="flex items-center gap-1.5"><span className="text-[9px] font-semibold text-ink">{r.v}</span><AppChip tone={r.s === 'paid' ? 'emerald' : r.s === 'sent' ? 'sky' : 'slate'}>{r.s}</AppChip></span>
+                  </div>
+                ))}
               </div>
-              <div className="mt-3 flex justify-end border-t border-white/10 pt-2">
-                <span className="font-display text-lg font-bold text-white">Total <Count to={926.25} prefix="£" decimals={2} dur={1200} /></span>
-              </div>
-            </Panel>
+            </Frame>
+          </Stage>
+        ),
+      },
+      {
+        title: 'Building an invoice',
+        caption: 'Pick a client and period — every approved unbilled shift becomes a line.',
+        secs: 9,
+        visual: (
+          <Stage title="Invoicing · New invoice" narration="New invoice asks for three things — client, period, notes. The moment you pick Chestnut Grange it pulls every approved, unbilled shift as a line item with hours, rate and uplift already resolved from the frozen snapshots. Numbering is automatic; the total counts itself.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Invoices build only from approved timesheets (6.10c)."
+              cursor={[{ x: 55, y: 85, at: 300 }, { x: 40, y: 40, at: 800 }, { x: 40, y: 50, at: 2400 }, { x: 62, y: 50, at: 3400 }, { x: 60, y: 80, at: 6800, click: true }]}>
+              <AppModal title="New invoice" sub="Approved, unbilled shifts become line items automatically." at={400}
+                footer={<><AppBtn>Cancel</AppBtn><AppBtn primary hit={6900}>Create invoice</AppBtn></>}>
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-2">
+                  <SField label="Client" value="Chestnut Grange" at={850} className="col-span-2" />
+                  <TField label="From" value="13/10/2026" at={2500} />
+                  <TField label="To" value="19/10/2026" at={3500} />
+                </div>
+                <div className="tr-rise mt-2 space-y-1 rounded-md bg-slate-50 p-2" style={{ animationDelay: '4600ms' }}>
+                  <p className="text-[7px] font-bold uppercase tracking-wide text-slate-400">3 shifts found</p>
+                  <div className="flex justify-between text-[8px] text-slate-600"><span>Chloe Stan · 14 Oct · night 13.5h</span><b className="text-ink">£425.25</b></div>
+                  <div className="flex justify-between text-[8px] text-slate-600"><span>Mary Begum · 15 Oct · long day 12h</span><b className="text-ink">£312.00</b></div>
+                  <div className="flex justify-between text-[8px] text-slate-600"><span>Adebayo Bello · 16 Oct · day 9h</span><b className="text-ink">£189.00</b></div>
+                  <div className="flex justify-between border-t border-slate-200 pt-1 text-[9px] font-bold text-ink"><span>Total</span><span><Count to={926.25} prefix="£" decimals={2} dur={1000} /></span></div>
+                </div>
+              </AppModal>
+            </Frame>
           </Stage>
         ),
       },
       {
         title: 'Send, print, get paid',
-        caption: 'Send queues a pre-filled email to the client\'s billing address with the PDF attached-ready print view. Marking paid takes a real payment date — that\'s what feeds reconciliation.',
+        caption: 'The detail view — send by email, print a PDF, mark paid with the real date.',
+        secs: 9,
         visual: (
-          <Stage title="Invoicing · send & reconcile" narration="Send opens a pre-filled email to the client's billing address; Print produces a clean standalone PDF — no app chrome. Marking paid takes the real payment date, which is what drives reconciliation and clears the invoice off aged debtors.">
-            <div className="relative">
-              <Panel title="INV-2026-0001 — Ferndale Court">
-                <p className="text-xs text-white/70">£1,142.00 · issued 12 Oct · due 26 Oct</p>
-                <div className="mt-2 flex gap-2">
-                  <Chip tone="sky" i={1}>Send → mailto</Chip><Chip tone="slate" i={2}>Print PDF</Chip><Chip tone="emerald" i={3}>Mark paid</Chip>
+          <Stage title="Invoicing · the detail" narration="Open the invoice — full line items, client address, totals. The cursor marks it sent, which queues the pre-filled email to the client's billing address; then when the money lands, Mark paid takes the real payment date. That's what drives reconciliation and clears it off aged debtors.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="INV-2026-0001 — Ferndale Court"
+              cursor={[{ x: 55, y: 85, at: 300 }, { x: 47, y: 76, at: 3200, click: true }, { x: 66, y: 76, at: 5900, click: true }]}>
+              <div className="mx-auto max-w-md rounded-lg border border-slate-200/70 bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div><p className="font-display text-xs font-bold text-ink">INV-2026-0001</p><p className="text-[8px] text-slate-500">Ferndale Court · Ipswich</p></div>
+                  <CycleChip states={[{ label: 'Draft', tone: 'slate' }, { label: 'Draft', tone: 'slate' }, { label: 'Draft', tone: 'slate' }, { label: 'Sent', tone: 'sky' }, { label: 'Paid', tone: 'emerald' }]} ms={1400} />
                 </div>
-              </Panel>
-              <Stamp delay={1900}>Paid</Stamp>
-            </div>
+                <div className="mt-2 space-y-1 border-y border-slate-100 py-1.5">
+                  <div className="flex justify-between text-[8px] text-slate-600"><span>Chloe Stan · 12 Oct · night</span><b className="text-ink">£425.25</b></div>
+                  <div className="flex justify-between text-[8px] text-slate-600"><span>Emmanuel Nwosu · 13 Oct · day ×2</span><b className="text-ink">£716.75</b></div>
+                </div>
+                <div className="mt-1.5 flex justify-between text-[10px] font-bold text-ink"><span>Total</span><span>£1,142.00</span></div>
+                <div className="mt-2.5 flex justify-end gap-1.5">
+                  <AppBtn>Print PDF</AppBtn>
+                  <AppBtn hit={3300}>Mark sent</AppBtn>
+                  <AppBtn primary hit={6000}>Mark paid</AppBtn>
+                </div>
+              </div>
+              <Toast at={6700}>Paid 18 Oct — off aged debtors ✓</Toast>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Aged debtors watches everything',
-        caption: 'Sent-but-unpaid invoices stack into ageing buckets — current, 1–30, 31–60, 60+ — with the client names on each, so chasing is a report, not a memory test.',
+        title: 'Aged debtors',
+        caption: 'Every sent-but-unpaid invoice stacks into ageing buckets — chasing becomes a report.',
         visual: (
-          <Stage title="Invoicing · aged debtors" narration="Every sent-but-unpaid invoice stacks into an ageing bucket — current, one to thirty, thirty to sixty, sixty-plus — with the client's name attached. Chasing becomes a report you open, not a list you remember; drafts never count, because they aren't debt yet.">
-            <div className="flex items-end justify-center gap-5">
-              <Bar h={35} tone="bg-emerald-400/80" i={0} label="Current" />
-              <Bar h={70} tone="bg-amber-400/80" i={1} label="1–30d" />
-              <Bar h={45} tone="bg-orange-400/80" i={2} label="31–60d" />
-              <Bar h={20} tone="bg-red-400/80" i={3} label="60d+" />
-            </div>
-            <div className="mt-4"><Ticker items={[
-              'Ferndale Court · £1,142 · 5 days', 'Oaks Lodge · £2,310 · 34 days', 'Meadow View · £890 · current',
-            ]} /></div>
+          <Stage title="Invoicing · aged debtors" narration="The aged debtors tab stacks every sent-but-unpaid invoice into ageing buckets — current, one to thirty, thirty to sixty, sixty-plus — with the client and amount on each. Chasing is a report you open, not a list you remember; drafts never count because they aren't debt yet.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Sent but unpaid — by age">
+              <TabBar tabs={['Invoices', 'Aged debtors', 'Payroll export', 'Margin']} active="Aged debtors" />
+              <div className="grid grid-cols-4 gap-1.5">
+                <AppStat label="Current" value="£890" at={100} />
+                <AppStat label="1–30 days" value="£926" at={250} tone="text-amber-600" />
+                <AppStat label="31–60 days" value="£2,310" at={400} tone="text-orange-600" />
+                <AppStat label="60+ days" value="£0" at={550} tone="text-red-600" />
+              </div>
+              <div className="mt-1.5 space-y-1">
+                <AppRow at={700}><span className="text-[8px] text-ink">Oaks Lodge · INV-2026-0003 · £2,310</span><AppChip tone="orange">34 days</AppChip></AppRow>
+                <AppRow at={900}><span className="text-[8px] text-ink">Chestnut Grange · INV-2026-0002 · £926</span><AppChip tone="amber">12 days</AppChip></AppRow>
+                <AppRow at={1100}><span className="text-[8px] text-ink">Meadow View · INV-2026-0005 · £890</span><AppChip tone="emerald">Current</AppChip></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -456,46 +820,85 @@ export const MODULES: Module[] = [
     scenes: [
       {
         title: 'Preview before anything moves',
-        caption: 'The preview splits approved timesheets into PAYE and Ltd runs with totals and hours — and lists every rejected row with its exact reason before you commit.',
+        caption: 'Set the period, hit Preview — the modal shows exactly what will export.',
+        secs: 8,
         visual: (
-          <Stage title="Payroll · the preview" narration="Preview splits the period's approved timesheets into PAYE and Ltd runs — rows, hours and totals — and every rejected row names its reason: not approved, no payroll ref, marked paid manually. Nothing exports until you say so, and nothing is silently dropped.">
-            <div className="grid grid-cols-2 gap-3">
-              <Panel title="PAYE run"><Stat label="Rows" value={<Count to={36} />} i={0} /><p className="mt-1 text-[10px] text-white/60">417h · <Count to={9117.54} prefix="£" decimals={2} dur={1200} /></p></Panel>
-              <Panel title="Ltd run"><Stat label="Rows" value={<Count to={23} />} i={1} /><p className="mt-1 text-[10px] text-white/60">250.5h · <Count to={5322.23} prefix="£" decimals={2} dur={1200} /></p></Panel>
-            </div>
-            <div className="mt-3 space-y-1.5">
-              <Row i={2}><span className="text-[11px] text-white">Timesheet not approved</span><Chip tone="red" i={3}>Rejected</Chip></Row>
-              <Row i={3}><span className="text-[11px] text-white">No payroll ref on file</span><Chip tone="red" i={4}>Rejected</Chip></Row>
-            </div>
+          <Stage title="Payroll export · preview" narration="On the payroll tab, set the period and hit Preview — the modal shows the two runs it will create: PAYE and Ltd, with rows, hours and totals, plus any rejected rows with their reasons. Nothing exports until you click Export inside it.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Bureau-ready payroll runs"
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 80, y: 31, at: 4200, click: true }]}>
+              <TabBar tabs={['Invoices', 'Aged debtors', 'Payroll export', 'Margin']} active="Payroll export" />
+              <div className="flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-white px-2 py-1.5">
+                <span className="text-[8px] text-slate-500">From <b className="text-ink">01/10/2026</b></span>
+                <span className="text-[8px] text-slate-500">To <b className="text-ink">31/10/2026</b></span>
+                <AppBtn primary hit={4300} className="ml-auto">Preview</AppBtn>
+              </div>
+              <div className="mt-1.5 rounded-lg border border-slate-200/70 bg-white p-2">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Recent runs</p>
+                <AppRow at={600}><span className="text-[8px] text-ink">Run #23 · Ltd · 9 shifts</span><span className="text-[8px] font-semibold text-ink">£1,759.76</span></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'One click, one run, never twice',
-        caption: 'Export writes a payroll run, marks the shifts paid against that run ID, and downloads the bureau CSV. Run it again on the same period and the rows refuse — double-pay is structurally impossible.',
+        title: 'The preview modal',
+        caption: 'PAYE and Ltd groups, rejected rows with reasons — Export inside the modal.',
+        secs: 9,
         visual: (
-          <Stage title="Payroll · the export" narration="Export writes a payroll run, stamps every shift paid against that run ID, and downloads the bureau-formatted CSV — payroll ref, hours, uplift, amount. Try it again on the same period and the rows politely refuse: double-pay is structurally impossible, not just warned about.">
-            <div className="relative">
-              <Panel title="Run #22 · PAYE" scan>
-                <Row i={0}><span className="text-[11px] text-white">SAN-001 · Chloe Stan · 13.5h</span><Chip tone="emerald" i={1}>£283.50</Chip></Row>
-                <div className="mt-1.5" /><Row i={1}><span className="text-[11px] text-white">SAN-005 · Mary Begum · 11h</span><Chip tone="emerald" i={2}>£231.00</Chip></Row>
-                <p className="mt-2 text-[10px] text-sky-200/60">payroll_ref · hours · uplift · amount — bureau format</p>
-              </Panel>
-              <Stamp tone="sky" delay={1700}>Exported</Stamp>
-            </div>
+          <Stage title="Payroll export · inside the preview" narration="Inside the preview: PAYE and Ltd groups with every row's hours and amount, and rejected rows greyed with their reason — so nothing is silently dropped. The cursor exports the PAYE run — the CSV downloads for the bureau and every shift is stamped paid against run #24.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Payroll preview — 01–31 Oct 2026"
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 74, y: 83, at: 5600, click: true }]}>
+              <AppModal title="Payroll preview" sub="01 Oct – 31 Oct 2026" at={400} wide
+                footer={<><AppBtn>Close</AppBtn><AppBtn primary hit={5700}>Export PAYE CSV</AppBtn><AppBtn primary>Export Ltd CSV</AppBtn></>}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-slate-50 p-1.5">
+                    <p className="mb-1 text-[7px] font-bold uppercase text-slate-500">PAYE · 36 rows · 417h · £9,117.54</p>
+                    <div className="space-y-0.5 text-[8px] text-slate-600">
+                      <p className="flex justify-between"><span>SAN-001 · Chloe Stan · 13.5h</span><b className="text-ink">£283.50</b></p>
+                      <p className="flex justify-between"><span>SAN-005 · Mary Begum · 11h</span><b className="text-ink">£231.00</b></p>
+                      <p className="flex justify-between"><span>SAN-051 · Sophie Turner · 12h</span><b className="text-ink">£252.00</b></p>
+                    </div>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-1.5">
+                    <p className="mb-1 text-[7px] font-bold uppercase text-slate-500">Ltd · 23 rows · 250.5h · £5,322.23</p>
+                    <div className="space-y-0.5 text-[8px] text-slate-600">
+                      <p className="flex justify-between"><span>SAN-012 · Emmanuel Nwosu · 24h</span><b className="text-ink">£504.00</b></p>
+                      <p className="flex justify-between"><span>SAN-008 · Adebayo Bello · 11h</span><b className="text-ink">£264.00</b></p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 space-y-0.5 rounded-md bg-slate-50 p-1.5">
+                  <p className="text-[7px] font-bold uppercase text-slate-400">Already exported — skipped</p>
+                  <p className="text-[8px] text-slate-500">Run #22 · 11 shifts — cannot double-pay</p>
+                </div>
+              </AppModal>
+              <Toast at={6400}>Exported 36 PAYE shifts — run #24 · £9,117.54</Toast>
+            </Frame>
           </Stage>
         ),
       },
       {
         title: 'Every run is auditable',
-        caption: 'Run history lists each export — who ran it, when, which engagement, how many shifts, total value — with the CSV re-downloadable at any point.',
+        caption: 'Run history — who exported, when, how many shifts, the total, and the CSV.',
         visual: (
-          <Stage title="Payroll · run history" narration="Every export is on record — who ran it, when, PAYE or Ltd, how many shifts and the total value — with the CSV re-downloadable at any point. If the bureau ever queries a payment, the answer is already filed.">
-            <div className="space-y-2">
-              <Row i={0}><span className="text-xs text-white">Run #23 · Ltd · 9 shifts</span><span className="text-[11px] text-emerald-300">£1,759.76</span></Row>
-              <Row i={1}><span className="text-xs text-white">Run #22 · PAYE · 11 shifts</span><span className="text-[11px] text-emerald-300">£2,855.74</span></Row>
-              <Row i={2}><span className="text-xs text-white">Run #21 · PAYE · 14 shifts</span><span className="text-[11px] text-emerald-300">£3,104.20</span></Row>
-            </div>
+          <Stage title="Payroll export · run history" narration="Every export is on record — who ran it, when, PAYE or Ltd, how many shifts, the total — with the CSV re-downloadable any time. A shift marked paid against a run can never export twice: double-pay is structurally impossible, not just warned about.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Export history">
+              <TabBar tabs={['Invoices', 'Aged debtors', 'Payroll export', 'Margin']} active="Payroll export" />
+              <div className="overflow-hidden rounded-lg border border-slate-200/70 bg-white">
+                {[
+                  { r: 'Run #24', t: 'PAYE', s: '36 shifts · 417h', v: '£9,117.54', d: 'today 14:02 · Jill' },
+                  { r: 'Run #23', t: 'Ltd', s: '9 shifts · 96h', v: '£1,759.76', d: 'today 13:32 · Jill' },
+                  { r: 'Run #22', t: 'PAYE', s: '11 shifts · 121h', v: '£2,855.74', d: 'today 13:32 · Jill' },
+                  { r: 'Run #21', t: 'PAYE', s: '14 shifts · 154h', v: '£3,104.20', d: '30 Sep · Jill' },
+                ].map((r, i) => (
+                  <div key={r.r} className="tr-left flex items-center justify-between gap-2 border-b border-slate-100 px-2.5 py-1.5 last:border-0" style={{ animationDelay: `${300 + i * 200}ms` }}>
+                    <span><span className="block text-[9px] font-medium text-ink">{r.r} · <span className="text-slate-400">{r.t}</span></span>
+                      <span className="block text-[7px] text-slate-400">{r.d}</span></span>
+                    <span className="flex items-center gap-2"><span className="text-[8px] text-slate-500">{r.s}</span><b className="text-[9px] text-ink">{r.v}</b><AppBtn>CSV</AppBtn></span>
+                  </div>
+                ))}
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -506,45 +909,65 @@ export const MODULES: Module[] = [
     id: 'margin', title: 'Margin', subtitle: 'Profit per shift, honestly', icon: TrendingUp, tint: 'from-teal-500 to-cyan-600',
     scenes: [
       {
-        title: 'True cost, not just pay',
-        caption: 'Margin reads the frozen approval snapshot — charge minus pay minus employer NI minus bureau fee — so historical numbers can\'t drift when rates change later.',
+        title: 'Running margin',
+        caption: 'Set a period, hit Run — actuals from frozen snapshots, estimates flagged.',
+        secs: 8,
         visual: (
-          <Stage title="Margin · the honest breakdown" narration="Margin is charge minus the true cost — worker pay, employer NI and the bureau fee — read from the frozen approval snapshot, not today's rates. The numbers from October can't drift when December's rates change, so this report is always trustworthy.">
-            <div className="flex items-end justify-center gap-6">
-              <Bar h={92} tone="bg-sky-400/80" i={0} label="Charge" />
-              <Bar h={62} tone="bg-amber-400/80" i={1} label="Pay" />
-              <Bar h={14} tone="bg-orange-400/80" i={2} label="NI" />
-              <Bar h={8} tone="bg-violet-400/80" i={3} label="Fee" />
-              <Bar h={34} tone="bg-emerald-400/90" i={4} label="Margin" />
-            </div>
-          </Stage>
-        ),
-      },
-      {
-        title: 'Run any period, drill anywhere',
-        caption: 'Hit Run on a date range and results group by client and worker — actuals where snapshots exist, estimates flagged as estimates, unavailable rows named rather than hidden.',
-        visual: (
-          <Stage title="Margin · running a period" narration="Run any date range and results split into three honest buckets — actuals from frozen snapshots, estimates clearly flagged as estimates, and rows with no data named rather than hidden. You always know which margin figures are fact and which are guidance.">
-            <div className="grid grid-cols-3 gap-2">
-              <Panel title="Actual"><Stat label="Shifts" value={<Count to={31} />} i={0} /><p className="text-[10px] text-emerald-300">frozen snapshots</p></Panel>
-              <Panel title="Estimated"><Stat label="Shifts" value={<Count to={6} />} i={1} /><p className="text-[10px] text-amber-300">live rates</p></Panel>
-              <Panel title="No data"><Stat label="Shifts" value={<Count to={2} />} i={2} /><p className="text-[10px] text-red-300">flagged</p></Panel>
-            </div>
-            <Panel className="mt-3" title="Margin trend"><Spark points={[6, 8, 7.2, 9.5, 9, 11, 12.4, 13.1]} tone="#2dd4bf" /></Panel>
+          <Stage title="Margin · run a period" narration="The margin tab takes a date range — hit Run and every completed shift is costed honestly: charge minus pay minus employer NI minus bureau fee. Rows with frozen approval snapshots are actuals; anything priced on live rates is flagged as an estimate so fact never blends with guidance.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="True cost per shift"
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 80, y: 31, at: 4200, click: true }]}>
+              <TabBar tabs={['Invoices', 'Aged debtors', 'Payroll export', 'Margin']} active="Margin" />
+              <div className="flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-white px-2 py-1.5">
+                <span className="text-[8px] text-slate-500">From <b className="text-ink">01/10/2026</b></span>
+                <span className="text-[8px] text-slate-500">To <b className="text-ink">31/10/2026</b></span>
+                <span className="text-[8px] text-slate-500">Group <b className="text-ink">Client</b></span>
+                <AppBtn primary hit={4300} className="ml-auto">Run</AppBtn>
+              </div>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                <AppStat label="Actual shifts" value={<Count to={31} />} at={5000} />
+                <AppStat label="Estimated" value={<Count to={6} />} at={5150} tone="text-amber-600" />
+                <AppStat label="Total margin" value={<Count to={3.1} prefix="£" suffix="k" decimals={1} />} at={5300} tone="text-emerald-600" />
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
         title: 'Where margin is made',
-        caption: 'Group results by client to see which homes are worth the effort, or by worker to spot where uplifts are eating the spread.',
+        caption: 'Per-client breakdown — charge, pay, NI, fee and the margin left.',
         visual: (
-          <Stage title="Margin · per client" narration="Group by client and the answer is instant — which homes return real margin and where uplifts are quietly eating the spread. The longest bar is your best client; the shortest is worth a conversation about rates.">
-            <div className="space-y-2">
-              <div><p className="text-[10px] text-white/60">Chestnut Grange</p><FillBar i={0} pct={92} tone="bg-emerald-400/80" /></div>
-              <div><p className="text-[10px] text-white/60">Oaks Lodge</p><FillBar i={1} pct={64} tone="bg-teal-400/80" /></div>
-              <div><p className="text-[10px] text-white/60">Ferndale Court</p><FillBar i={2} pct={48} tone="bg-sky-400/80" /></div>
-              <div><p className="text-[10px] text-white/60">Meadow View</p><FillBar i={3} pct={21} tone="bg-amber-400/80" /></div>
-            </div>
+          <Stage title="Margin · per client" narration="Grouped by client, the answer is instant — Chestnut Grange returns the most, Meadow View the least, with every shift's charge-pay-NI-fee split visible underneath. The shortest bar is worth a conversation about rates; this is the report that tells you which homes are worth the effort.">
+            <Frame nav="Invoicing" url="invoices" title="Invoicing & payroll" sub="Margin by client · October">
+              <TabBar tabs={['Invoices', 'Aged debtors', 'Payroll export', 'Margin']} active="Margin" />
+              <div className="space-y-1.5 rounded-lg border border-slate-200/70 bg-white p-2">
+                {[
+                  { c: 'Chestnut Grange', m: '£1,240', p: 92, t: 'bg-emerald-500' },
+                  { c: 'Oaks Lodge', m: '£860', p: 64, t: 'bg-teal-500' },
+                  { c: 'Ferndale Court', m: '£645', p: 48, t: 'bg-sky-500' },
+                  { c: 'Meadow View', m: '£285', p: 21, t: 'bg-amber-500' },
+                ].map((r, i) => (
+                  <div key={r.c} className="tr-left" style={{ animationDelay: `${200 + i * 180}ms` }}>
+                    <div className="flex justify-between text-[8px]"><span className="font-medium text-ink">{r.c}</span><b className="text-emerald-600">{r.m}</b></div>
+                    <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className={`tr-fill h-full rounded-full ${r.t}`} style={{ ['--w' as any]: `${r.p}%`, animationDelay: `${300 + i * 180}ms` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1.5 overflow-hidden rounded-lg border border-slate-200/70 bg-white">
+                <div className="grid grid-cols-6 gap-1 border-b border-slate-200/70 bg-slate-50/80 px-2 py-1 text-[6px] font-bold uppercase tracking-wide text-slate-400">
+                  <span>Shift</span><span>Charge</span><span>Pay</span><span>NI</span><span>Fee</span><span>Margin</span>
+                </div>
+                {[
+                  { s: 'C. Stan · 14 Oct', c: '£425.25', p: '£283.50', ni: '£31.20', f: '£4.10', m: '£106.45' },
+                  { s: 'M. Begum · 15 Oct', c: '£312.00', p: '£231.00', ni: '£22.60', f: '£4.10', m: '£54.30' },
+                ].map((r, i) => (
+                  <div key={r.s} className="tr-left grid grid-cols-6 gap-1 border-b border-slate-100 px-2 py-1.5 text-[8px] text-slate-600 last:border-0" style={{ animationDelay: `${1400 + i * 200}ms` }}>
+                    <span className="text-ink">{r.s}</span><span>{r.c}</span><span>{r.p}</span><span>{r.ni}</span><span>{r.f}</span><b className="text-emerald-600">{r.m}</b>
+                  </div>
+                ))}
+              </div>
+            </Frame>
           </Stage>
         ),
       },
@@ -555,50 +978,76 @@ export const MODULES: Module[] = [
     id: 'compliance', title: 'Compliance', subtitle: 'Documents that police themselves', icon: ShieldCheck, tint: 'from-red-500 to-rose-600',
     scenes: [
       {
-        title: 'A live status per document',
-        caption: 'The overview counts valid, expiring, expired and missing documents across the workforce — statuses refresh themselves as dates pass, with nobody needing to flip a flag.',
+        title: 'The compliance board',
+        caption: 'Every document across the workforce — valid, expiring, expired, missing.',
         visual: (
-          <Stage title="Compliance · the overview" narration="Every document in the workforce has a live status — valid, expiring inside sixty days, expired, or missing — and it flips itself as dates pass. Nobody ticks a flag; the overview is always the current truth, and blocked workers surface before they reach a rota.">
-            <div className="grid grid-cols-4 gap-3">
-              <Stat i={0} label="Valid" value={<Count to={412} />} tone="text-emerald-300" />
-              <Stat i={1} label="Expiring" value={<Count to={9} />} tone="text-amber-300" />
-              <Stat i={2} label="Expired" value={<Count to={3} />} tone="text-red-300" />
-              <Stat i={3} label="Blocked" value={<Count to={4} />} tone="text-red-300" />
-            </div>
-            <div className="mt-4 space-y-1.5">
-              <Row i={1}><NameBar name="Emmanuel Nwosu" sub="Mandatory Training" /><Chip tone="amber" i={2}>38 days</Chip></Row>
-              <Row i={2}><NameBar name="Test Worker" sub="DBS Enhanced" /><Chip tone="red" i={3}>Missing</Chip></Row>
-            </div>
+          <Stage title="Compliance · the board" narration="The Compliance page counts every document across the workforce — valid, expiring inside sixty days, expired, missing — and each status flips itself as dates pass. Nobody ticks a flag; this board is always the current truth.">
+            <Frame nav="Compliance" url="compliance" title="Compliance" sub="DBS, NMC PIN, right-to-work and training documents across all candidates.">
+              <div className="grid grid-cols-4 gap-1.5">
+                <AppStat label="Valid" value={<Count to={412} />} at={100} tone="text-emerald-600" />
+                <AppStat label="Expiring" value={<Count to={9} />} at={250} tone="text-amber-600" />
+                <AppStat label="Expired" value={<Count to={3} />} at={400} tone="text-red-600" />
+                <AppStat label="Missing" value={<Count to={4} />} at={550} tone="text-red-600" />
+              </div>
+              <div className="mt-1.5 space-y-1">
+                <AppRow at={700}><LName name="Emmanuel Nwosu" sub="Mandatory Training" /><AppChip tone="amber">Expires in 38d</AppChip></AppRow>
+                <AppRow at={900}><LName name="Test Worker" sub="DBS Enhanced" /><AppChip tone="red">Missing</AppChip></AppRow>
+                <AppRow at={1100}><LName name="Sofia Reyes" sub="Right to Work" /><AppChip tone="red">Expired</AppChip></AppRow>
+              </div>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Reminders queue themselves',
-        caption: 'At 60, 30, 14 and 7 days before expiry the system writes reminder messages to the outbox — WhatsApp and email, addressed to the worker — and logs a monthly digest to compliance staff.',
+        title: 'Recording a document',
+        caption: 'Upload or key a document — reference, dates, file — the board updates itself.',
+        secs: 8,
         visual: (
-          <Stage title="Compliance · automatic reminders" narration="At sixty, thirty, fourteen and seven days before expiry, reminder messages write themselves into the outbox — WhatsApp and email, addressed to the worker — plus a monthly digest for the compliance team. Deduped per document per day, so nothing ever sends twice.">
-            <div className="flex items-center gap-2">
-              <Panel className="w-40" title="Expiry clock">
-                <div className="space-y-1.5"><FillBar i={0} pct={100} label="60d" tone="bg-sky-400/70" /><FillBar i={1} pct={70} label="30d" tone="bg-amber-400/70" /><FillBar i={2} pct={40} label="14d" tone="bg-orange-400/70" /><FillBar i={3} pct={20} label="7d" tone="bg-red-400/70" /></div>
-              </Panel>
-              <FlowArrow i={4} />
-              <Panel className="flex-1" title="Outbox" scan>
-                <Row i={5}><span className="text-[10px] text-white">"Hi Emmanuel — Mandatory Training expires…"</span><Chip tone="sky" i={6}>WhatsApp</Chip></Row>
-              </Panel>
-            </div>
+          <Stage title="Compliance · recording a document" narration="Recording a document takes seconds — type, reference number, expiry date, the file itself. Save it and three things happen at once: the board counts it, the worker's score recalculates, and the reminder engine arms itself for sixty, thirty, fourteen and seven days before expiry.">
+            <Frame nav="Compliance" url="compliance" title="Compliance" sub="Emmanuel Nwosu — Mandatory Training"
+              cursor={[{ x: 55, y: 85, at: 300 }, { x: 40, y: 38, at: 900 }, { x: 40, y: 48, at: 2300 }, { x: 62, y: 48, at: 3400 }, { x: 62, y: 78, at: 5400, click: true }]}>
+              <AppModal title="Record document" sub="Emmanuel Nwosu — upload or key the details." at={400}
+                footer={<><AppBtn>Cancel</AppBtn><AppBtn primary hit={5500}>Save document</AppBtn></>}>
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-2">
+                  <SField label="Document type" value="Mandatory Training" at={950} className="col-span-2" />
+                  <TField label="Reference" value="MT-2026-8841" at={2400} />
+                  <TField label="Expiry date" value="14/09/2027" at={3500} />
+                  <div className="tr-rise col-span-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-center text-[8px] text-slate-400" style={{ animationDelay: '4300ms' }}>
+                    certificate.pdf — attached
+                  </div>
+                </div>
+              </AppModal>
+              <Toast at={6200}>Saved — reminders armed at 60/30/14/7 days</Toast>
+            </Frame>
           </Stage>
         ),
       },
       {
-        title: 'Booking is hard-gated',
-        caption: 'workerComplianceFor runs at allocation time — a missing or expired required document makes the shift refuse to save. There is no override; staff must fix the document.',
+        title: 'The booking gate',
+        caption: 'Missing a required document? The shift refuses to save and names the gap.',
+        secs: 8,
         visual: (
-          <Stage title="Compliance · the hard gate" narration="At the moment of allocation the compliance check runs — and a missing or expired required document makes the shift refuse to save, with the gap named. There is no override button; staff fix the document, the score recomputes, and the worker is bookable again within seconds.">
-            <div className="flex items-center gap-2">
-              <Panel className="flex-1" title="Allocate"><Row i={0}><NameBar name="Test Worker" /><Chip tone="red" i={1}>References missing</Chip></Row></Panel>
-              <FlowArrow i={2} />
-              <Panel className="w-44" title="Result"><Chip tone="red" i={3}>422 — blocked</Chip></Panel>
-            </div>
+          <Stage title="Compliance · the hard gate" narration="At the moment of allocation the compliance check runs — and if a required document is missing or expired the shift refuses to save, naming the gap. There's no override button; staff fix the document, the score recomputes, and the worker is bookable within seconds.">
+            <Frame nav="Requests" url="requests" title="Shift requests & allocation" sub="Trying to book a non-compliant worker"
+              cursor={[{ x: 55, y: 85, at: 300 }, { x: 88, y: 46, at: 3800, click: true }]}>
+              <TabBar tabs={['Pipeline', 'Requests (3 open)', 'Availability board']} active="Pipeline" />
+              <div className="grid grid-cols-4 gap-1.5 opacity-60">
+                <PipeCol label="New" color="#38bdf8" cards={['Chestnut · Night ×2']} />
+                <PipeCol label="Offers" color="#fbbf24" cards={['Oaks · Day']} />
+                <PipeCol label="Booked" color="#2dd4bf" cards={['Ferndale · LD']} />
+                <PipeCol label="Invoice" color="#14b8a6" cards={['Meadow · Day']} />
+              </div>
+              <Drawer title="Allocate — Night, 20 Oct" at={400}>
+                <div className="space-y-1">
+                  <AppRow at={700}><LName name="Sophie Turner" sub="8 min · compliant" /><AppBtn>Offer</AppBtn></AppRow>
+                  <AppRow at={1000} className="border-red-200 bg-red-50/40"><LName name="Test Worker" sub="0.2 mi away" /><AppBtn primary hit={3900}>Offer</AppBtn></AppRow>
+                </div>
+                <div className="tr-pop mt-2 rounded-md bg-red-50 px-2 py-1.5 text-[8px] font-semibold text-red-600 ring-1 ring-red-600/20" style={{ animationDelay: '4600ms' }}>
+                  422 — Cannot book: References missing, DBS missing
+                </div>
+                <p className="tr-rise mt-1.5 text-[7px] text-slate-400" style={{ animationDelay: '5600ms' }}>Fix the documents on their profile → bookable again in seconds.</p>
+              </Drawer>
+            </Frame>
           </Stage>
         ),
       },
@@ -609,52 +1058,89 @@ export const MODULES: Module[] = [
     id: 'portals', title: 'Portals', subtitle: 'Worker, client & supervisor apps', icon: MonitorSmartphone, tint: 'from-indigo-500 to-violet-600',
     scenes: [
       {
-        title: 'Workers self-serve',
-        caption: 'Staff set availability, accept offers, submit timesheets, upload documents and export their own data from the worker portal — rates and margins stay invisible to them.',
+        title: 'Three apps, three jobs',
+        caption: 'Workers self-serve, homes manage their cover, supervisors run the floor.',
         visual: (
-          <Stage title="Portals · the worker app" narration="Workers run themselves: set availability, accept or decline offers, submit timesheets, upload documents and export their own data — all from their phone. What they never see is just as deliberate: charge rates, margins and anyone else's details.">
-            <div className="grid grid-cols-2 gap-3">
-              <Panel title="Worker portal" scan>
-                <div className="space-y-1.5">
-                  <Row i={0}><span className="text-[10px] text-white">Offer: Sat night</span><CycleChip states={[{ label: 'Pending', tone: 'amber' }, { label: 'Accepted', tone: 'emerald' }]} ms={1500} /></Row>
-                  <Row i={1}><span className="text-[10px] text-white">Timesheet due</span><Chip tone="sky" i={2}>Submit</Chip></Row>
-                  <Row i={2}><span className="text-[10px] text-white">Availability</span><Chip tone="teal" i={3}>Set days</Chip></Row>
-                </div>
-              </Panel>
-              <Panel title="Never visible to workers">
-                <p className="text-[11px] leading-relaxed text-red-300/80">Charge rates · margins · other workers · client billing details</p>
-              </Panel>
-            </div>
+          <Stage title="The three portals" narration="Three portals, three jobs. Workers set availability, accept offers and submit timesheets. Homes raise requests and countersign timesheets. Supervisors see tonight's rota and check workers in as they arrive. Each sees exactly their slice — never rates, margins, or each other's money.">
+            <StageBare>
+              <div className="flex items-end justify-center gap-4 pt-2">
+                <Phone title="Worker portal" at={100}>
+                  <p className="text-[7px] font-bold text-ink">Hi Sophie</p>
+                  <div className="rounded-md bg-white p-1 ring-1 ring-slate-200"><p className="text-[6px] text-slate-500">Offer · Chestnut night</p><span className="mt-0.5 inline-flex rounded bg-brand-600 px-1.5 py-0.5 text-[6px] font-semibold text-white">Accept</span></div>
+                  <div className="rounded-md bg-white p-1 ring-1 ring-slate-200"><p className="text-[6px] text-slate-500">Timesheet due</p></div>
+                </Phone>
+                <Phone title="Client portal" at={400}>
+                  <p className="text-[7px] font-bold text-ink">Chestnut Grange</p>
+                  <div className="rounded-md bg-white p-1 ring-1 ring-slate-200"><p className="text-[6px] text-slate-500">Night cover · filled ✓</p></div>
+                  <div className="rounded-md bg-white p-1 ring-1 ring-slate-200"><p className="text-[6px] text-slate-500">Sign timesheet — Chloe</p></div>
+                </Phone>
+                <Phone title="Supervisor" at={700}>
+                  <p className="text-[7px] font-bold text-ink">Tonight's rota</p>
+                  <div className="rounded-md bg-white p-1 ring-1 ring-slate-200"><p className="text-[6px] text-slate-500">S. Turner · 19:00 <b className="text-emerald-600">✓ in</b></p></div>
+                  <div className="rounded-md bg-white p-1 ring-1 ring-slate-200"><p className="text-[6px] text-slate-500">M. Begum · 19:00 · awaiting</p></div>
+                </Phone>
+              </div>
+            </StageBare>
           </Stage>
         ),
       },
       {
-        title: 'Clients see their operation',
-        caption: 'Homes raise requests, watch fill status live, review their rota and countersign timesheets from the client portal — without ever seeing worker pay.',
+        title: 'The worker journey',
+        caption: 'Offer arrives → accept → work the shift → submit timesheet → paid.',
+        secs: 8,
         visual: (
-          <Stage title="Portals · the client app" narration="The home sees its own operation: raise a request, watch it fill live, review the rota and countersign timesheets. They get transparency about their service — and never a glimpse of what the worker is paid.">
-            <div className="flex items-center gap-2">
-              <Panel className="flex-1" title="Client portal">
-                <div className="space-y-1.5">
-                  <Row i={0}><span className="text-[10px] text-white">Night cover · Mon</span><Chip tone="teal" i={1}>Filled</Chip></Row>
-                  <Row i={1}><span className="text-[10px] text-white">Day ×2 · Fri</span><Chip tone="amber" i={2}>1 pending</Chip></Row>
+          <Stage title="Worker portal · the full loop" narration="The worker's whole loop on one phone: an offer arrives with the shift details — she taps Accept — after the shift her timesheet is ready to submit — and when payroll runs, it's marked paid. She never sees the client's charge or anyone else's details.">
+            <StageBare>
+              <div className="mx-auto flex max-w-sm items-end gap-3">
+                <Phone title="Worker portal" at={100}>
+                  <div className="rounded-md bg-white p-1.5 ring-1 ring-slate-200">
+                    <p className="text-[6px] font-bold text-ink">Shift offer</p>
+                    <p className="text-[6px] text-slate-500">Night · Chestnut Grange<br />20 Oct · 19:00–07:30</p>
+                    <span className="mt-1 inline-flex rounded bg-brand-600 px-1.5 py-0.5 text-[6px] font-semibold text-white tr-hit" style={{ animationDelay: '1800ms' }}>Accept</span>
+                  </div>
+                  <div className="rounded-md bg-white p-1.5 ring-1 ring-slate-200" style={{ animationDelay: '3000ms' }}>
+                    <p className="text-[6px] font-bold text-ink">Timesheet</p>
+                    <p className="text-[6px] text-slate-500">13.5h · ready</p>
+                    <span className="mt-0.5 inline-flex rounded bg-brand-600 px-1.5 py-0.5 text-[6px] font-semibold text-white tr-hit" style={{ animationDelay: '4200ms' }}>Submit</span>
+                  </div>
+                  <div className="rounded-md bg-emerald-50 p-1.5 ring-1 ring-emerald-600/20" style={{ animationDelay: '5400ms' }}>
+                    <p className="text-[6px] font-bold text-emerald-700">Paid · £354.38 — run #24 ✓</p>
+                  </div>
+                </Phone>
+                <div className="mb-4 flex-1 space-y-1">
+                  {['Offer → accept', 'Work the shift', 'Submit timesheet', 'Site signs', 'Paid via payroll'].map((s, i) => (
+                    <p key={s} className="tr-rise flex items-center gap-1.5 text-[9px] font-medium text-white/80" style={{ animationDelay: `${800 + i * 500}ms` }}>
+                      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-accent-500 text-[7px] font-bold text-white">{i + 1}</span>{s}
+                    </p>
+                  ))}
                 </div>
-              </Panel>
-              <FlowArrow i={2} />
-              <Panel className="w-40" title="Timesheet"><Chip tone="violet" i={3}>Sign off</Chip></Panel>
-            </div>
+              </div>
+            </StageBare>
           </Stage>
         ),
       },
       {
-        title: 'Supervisors on the floor',
-        caption: 'Supervisors get tonight\'s rota and check workers in on site — arrival confirmations feed back to the office in real time.',
+        title: 'What they never see',
+        caption: 'Boundaries are deliberate — workers never see charge rates, homes never see pay.',
         visual: (
-          <Stage title="Portals · the supervisor app" narration="On the floor, the supervisor sees tonight's rota and taps workers in as they arrive — the office watches arrivals land in real time. A worker who hasn't checked in by start time stays flagged, so a no-show is caught at 19:00, not 07:00.">
-            <div className="space-y-2">
-              <Row i={0}><NameBar name="Chloe Stan" sub="Night · 19:00 start" /><Chip tone="emerald" i={1} pulse>Checked in 18:52</Chip></Row>
-              <Row i={1}><NameBar name="Mary Begum" sub="Night · 19:00 start" /><Chip tone="amber" i={2} blink>Awaiting arrival</Chip></Row>
-            </div>
+          <Stage title="Portals · the boundaries" narration="The boundaries are deliberate and enforced server-side, not just hidden buttons: workers never see charge rates or margins; homes never see what the worker is paid; supervisors see tonight's rota and nothing else. It's one database with three clean windows into it.">
+            <StageBare>
+              <div className="mx-auto grid max-w-md grid-cols-3 gap-2 pt-2">
+                {[
+                  { p: 'Worker', sees: 'Offers · timesheets · documents · own pay', never: 'Charge rates · margins · other workers' },
+                  { p: 'Client', sees: 'Requests · rota · sign-offs · own invoices', never: 'Worker pay · other homes' },
+                  { p: 'Supervisor', sees: "Tonight's rota · check-ins", never: 'Pay · billing · office tools' },
+                ].map((x, i) => (
+                  <div key={x.p} className="tr-rise rounded-lg bg-white/10 p-2 ring-1 ring-white/10" style={{ animationDelay: `${200 + i * 250}ms` }}>
+                    <p className="text-[8px] font-bold uppercase tracking-wide text-accent-300">{x.p}</p>
+                    <p className="mt-1 text-[7px] font-semibold text-emerald-300">Sees</p>
+                    <p className="text-[7px] leading-snug text-white/70">{x.sees}</p>
+                    <p className="mt-1 text-[7px] font-semibold text-red-300">Never</p>
+                    <p className="text-[7px] leading-snug text-white/50">{x.never}</p>
+                  </div>
+                ))}
+              </div>
+            </StageBare>
           </Stage>
         ),
       },
@@ -665,50 +1151,65 @@ export const MODULES: Module[] = [
     id: 'dbs-beta', title: 'DBS Checks (Beta)', subtitle: 'Provider profile & imports', icon: Fingerprint, tint: 'from-slate-500 to-slate-700',
     scenes: [
       {
-        title: 'One board for every worker\'s DBS',
-        caption: 'The board colour-codes each worker — no DBS on file, never checked, re-check overdue, or flagged results — so renewals are chased before they lapse, not after.',
+        title: 'The DBS board',
+        caption: 'Every worker\'s DBS position, colour-coded — renewals chased before they lapse.',
         visual: (
-          <Stage title="DBS · the workforce board" narration="Every worker's DBS position in one colour-coded list — emerald means in date, amber means a re-check is due, red means a flagged result or no DBS on file at all. Renewals get chased before they lapse, not discovered after.">
-            <div className="space-y-2">
-              <Row i={0}><NameBar name="Mary Begum" sub="cert 0017123456 · checked 15 Oct" /><Chip tone="emerald" i={1}>In date</Chip></Row>
-              <Row i={1}><NameBar name="Adebayo Bello" sub="last check 7 months ago" /><Chip tone="amber" i={2}>Re-check due</Chip></Row>
-              <Row i={2}><NameBar name="Test Worker" sub="result: new information" /><Chip tone="red" i={3}>Attention</Chip></Row>
-              <Row i={3}><NameBar name="New applicant" sub="no DBS doc yet" /><Chip tone="red" i={4}>No DBS on file</Chip></Row>
-            </div>
-          </Stage>
-        ),
-      },
-      {
-        title: 'Provider results via CSV',
-        caption: 'Whatever provider you use — gov.uk direct or an umbrella body — export their CSV and drop it in. Rows match workers by email, id or name and land as audited register checks.',
-        visual: (
-          <Stage title="DBS · importing results" narration="Export check results from whoever runs them — gov.uk or an umbrella body — and drop the CSV in. Each row matches an existing worker and lands as an audited register check on their file, marked honestly as an import, never claimed as system-verified.">
-            <div className="flex items-center gap-2">
-              <Panel className="w-44" title="Provider CSV"><p className="text-[10px] text-white/60">email · cert · result · date</p></Panel>
-              <FlowArrow i={1} />
-              <Panel className="flex-1" title="Worker's record" scan>
-                <Row i={2}><span className="text-[10px] text-white">DBS Update Service · clear · 15 Oct</span><Chip tone="emerald" i={3}>csv import</Chip></Row>
-              </Panel>
-            </div>
-          </Stage>
-        ),
-      },
-      {
-        title: 'Ready for an API, honest about today',
-        caption: 'The connection profile stores provider, endpoint, org ref and key — and Test connection probes for real. Until a provider confirms API access, the page says exactly that; no fake green lights.',
-        visual: (
-          <Stage title="DBS · the provider profile" narration="Save the provider profile — gov.uk direct or an umbrella body — and Test connection probes the endpoint for real. Until a provider confirms API access the page says exactly that. No fake green lights; the automatic path is plumbed, never pretended.">
-            <Panel title="Provider profile">
-              <div className="space-y-1.5 text-[11px] text-white/70">
-                <p className="tr-rise" style={delay(0)}>Provider: <b className="text-white">uCheck / gov.uk / umbrella body</b></p>
-                <p className="tr-rise" style={delay(1)}>Endpoint: <b className="text-white">saved server-side</b></p>
-                <p className="tr-rise" style={delay(2)}>Key: <b className="text-white">masked, never re-shown</b></p>
+          <Stage title="DBS checks · the board" narration="The DBS board colour-codes every worker — emerald in date, amber re-check due, red flagged or no DBS on file at all. Renewals get chased before they lapse, not discovered after the home asks.">
+            <Frame nav="Compliance" url="dbs" title="DBS checks" sub="Track Disclosure & Barring Service checks across the workforce."
+              actions={<AppBtn primary>Import results</AppBtn>}>
+              <div className="grid grid-cols-4 gap-1.5">
+                <AppStat label="Workers" value={<Count to={50} />} at={100} />
+                <AppStat label="On file" value={<Count to={46} />} at={250} />
+                <AppStat label="Update Service" value={<Count to={19} />} at={400} tone="text-brand-600" />
+                <AppStat label="Attention" value={<Count to={3} />} at={550} tone="text-red-600" />
               </div>
-              <div className="mt-3"><CycleChip states={[{ label: 'Probing endpoint…', tone: 'amber' }, { label: 'No API yet — CSV active', tone: 'sky' }, { label: 'Ready when they are', tone: 'emerald' }]} ms={1700} /></div>
-            </Panel>
+              <div className="mt-1.5 space-y-1">
+                <AppRow at={700}><LName name="Mary Begum" sub="cert 0017123456 · checked 15 Oct" /><AppChip tone="emerald">In date</AppChip></AppRow>
+                <AppRow at={900}><LName name="Adebayo Bello" sub="last check 7 months ago" /><AppChip tone="amber">Re-check due</AppChip></AppRow>
+                <AppRow at={1100}><LName name="Test Worker" sub="result: new information" /><AppChip tone="red" blink>Attention</AppChip></AppRow>
+                <AppRow at={1300}><LName name="New applicant" sub="no DBS document yet" /><AppChip tone="red">No DBS</AppChip></AppRow>
+              </div>
+            </Frame>
+          </Stage>
+        ),
+      },
+      {
+        title: 'Importing provider results',
+        caption: 'Export from gov.uk or an umbrella body — CSV in, audited register checks out.',
+        secs: 8,
+        visual: (
+          <Stage title="DBS checks · CSV import" narration="Whoever runs the checks — gov.uk direct or an umbrella body — export their CSV and drop it in. Each row matches a worker by email, id or name, and lands as an audited register check marked honestly as an import — never claimed as system-verified. Duplicates and unknown workers are rejected in preview.">
+            <Frame nav="Compliance" url="dbs" title="DBS checks" sub="Import preview — provider CSV"
+              cursor={[{ x: 55, y: 88, at: 300 }, { x: 84, y: 82, at: 4800, click: true }]}>
+              <div className="overflow-hidden rounded-lg border border-slate-200/70 bg-white">
+                <div className="grid grid-cols-4 gap-2 border-b border-slate-200/70 bg-slate-50/80 px-2 py-1 text-[7px] font-bold uppercase tracking-wide text-slate-400">
+                  <span>Worker</span><span>Certificate</span><span>Result</span><span>Outcome</span>
+                </div>
+                {[
+                  { w: 'Mary Begum', c: '0017123456', r: 'Clear', ok: true, m: 'Record check' },
+                  { w: 'Emmanuel Nwosu', c: '0017441201', r: 'Clear', ok: true, m: 'Record check' },
+                  { w: 'J. Smith', c: '—', r: '—', ok: false, m: 'No worker match' },
+                  { w: 'Mary Begum', c: '0017123456', r: 'Clear', ok: false, m: 'Already recorded' },
+                ].map((r, i) => (
+                  <div key={i} className="tr-left grid grid-cols-4 items-center gap-2 border-b border-slate-100 px-2 py-1.5 last:border-0" style={{ animationDelay: `${400 + i * 250}ms` }}>
+                    <span className="text-[8px] text-ink">{r.w}</span>
+                    <span className="font-mono text-[8px] text-slate-500">{r.c}</span>
+                    <span className="text-[8px] text-slate-500">{r.r}</span>
+                    <AppChip tone={r.ok ? 'emerald' : 'red'}>{r.m}</AppChip>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex justify-end gap-1.5"><AppBtn>Discard</AppBtn><AppBtn primary hit={4900}>Commit 2 checks</AppBtn></div>
+              <Toast at={5600}>2 register checks recorded — audited</Toast>
+            </Frame>
           </Stage>
         ),
       },
     ],
   },
 ];
+
+// Wrapper so Phone-based scenes (no Frame) still sit correctly in the stage
+function StageBare({ children }: { children: ReactNode }) {
+  return <div className="h-full">{children}</div>;
+}

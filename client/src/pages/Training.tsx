@@ -5,7 +5,7 @@ import { MODULES, type Module } from '../training/modules';
 import { TrainingStyles } from '../training/visuals';
 import { PageHeader } from '../components/ui';
 
-const SCENE_MS = 7000; // auto-advance cadence
+const SCENE_MS = 7000; // default auto-advance cadence (scenes may override via `secs`)
 
 export default function Training() {
   const [active, setActive] = useState<Module | null>(null);
@@ -26,7 +26,7 @@ export default function Training() {
                 </span>
               </span>
               <span className="absolute bottom-2 right-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white">
-                {m.scenes.length} scenes · ~{m.scenes.length * 7}s
+                {m.scenes.length} scenes · ~{m.scenes.reduce((s, sc) => s + (sc.secs ?? 7), 0)}s
               </span>
             </div>
             <div className="px-4 py-3">
@@ -52,13 +52,14 @@ function Player({ mod, onClose }: { mod: Module; onClose: () => void }) {
   const timer = useRef<number>(0);
 
   const scene = mod.scenes[idx];
+  const sceneMs = (scene.secs ?? SCENE_MS / 1000) * 1000;
 
   useEffect(() => {
     if (!playing) return;
     const t0 = performance.now() - elapsed;
     const tick = () => {
       const e = performance.now() - t0;
-      if (e >= SCENE_MS) {
+      if (e >= sceneMs) {
         setElapsed(0);
         setIdx((i) => (i + 1 < mod.scenes.length ? i + 1 : i)); // stop on last scene
         if (idx + 1 >= mod.scenes.length) setPlaying(false);
@@ -69,7 +70,7 @@ function Player({ mod, onClose }: { mod: Module; onClose: () => void }) {
     };
     timer.current = window.setTimeout(tick, 100);
     return () => clearTimeout(timer.current);
-  }, [playing, idx, mod.scenes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, idx, sceneMs, mod.scenes.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = useCallback((to: number) => {
     setElapsed(0);
@@ -117,7 +118,7 @@ function Player({ mod, onClose }: { mod: Module; onClose: () => void }) {
           {mod.scenes.map((_, i) => (
             <button key={i} onClick={() => go(i)} className="h-1 flex-1 overflow-hidden rounded-full bg-white/15">
               <div className="h-full rounded-full bg-accent-400 transition-[width] duration-100"
-                style={{ width: i < idx ? '100%' : i === idx ? `${Math.min(100, (elapsed / SCENE_MS) * 100)}%` : '0%' }} />
+                style={{ width: i < idx ? '100%' : i === idx ? `${Math.min(100, (elapsed / sceneMs) * 100)}%` : '0%' }} />
             </button>
           ))}
         </div>
