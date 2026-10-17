@@ -306,7 +306,7 @@ function MyShifts() {
               {fmtDate(signing.shift_date)} — {signing.client_name}. Booked {signing.start_time.slice(0, 5)}–{signing.end_time.slice(0, 5)} ({signing.hours}h).
             </p>
             <p className="mt-3 text-xs text-slate-500">Adjust below if your actual times differed (6.9):</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <label className="block"><span className="mb-1 block text-[10px] font-medium text-slate-500">Start</span>
                 <input type="time" className={inputCls} value={signForm.actual_start} onChange={(e) => setSignForm((f) => ({ ...f, actual_start: e.target.value }))} /></label>
               <label className="block"><span className="mb-1 block text-[10px] font-medium text-slate-500">End</span>

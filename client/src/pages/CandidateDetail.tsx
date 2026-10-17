@@ -47,7 +47,7 @@ const chip = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px
 
 function Field({ label, children, full }: { label: string; children: ReactNode; full?: boolean }) {
   return (
-    <label className={clsx('block', full && 'col-span-2')}>
+    <label className={clsx('block', full && 'sm:col-span-2')}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       {children}
     </label>
@@ -676,6 +676,7 @@ export default function CandidateDetail() {
               {!data.oh_records?.length ? (
                 <p className="px-5 pb-4 text-xs text-slate-400">No OH records.</p>
               ) : (
+                <div className="scroll-thin overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200/60 text-left text-[11px] uppercase tracking-wide text-slate-400">
@@ -695,6 +696,7 @@ export default function CandidateDetail() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </Card>
           )}
@@ -923,7 +925,7 @@ export default function CandidateDetail() {
       </Modal>
 
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title={`Edit ${full}`} wide>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Status">
             <select className={inputCls} value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
               {CANDIDATE_STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
@@ -990,7 +992,7 @@ export default function CandidateDetail() {
           <Field label="Reference number">
             <input className={inputCls} value={docForm.reference_no} onChange={(e) => setDocForm({ ...docForm, reference_no: e.target.value })} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Issue date">
               <input type="date" className={inputCls} value={docForm.issue_date} onChange={(e) => setDocForm({ ...docForm, issue_date: e.target.value })} />
             </Field>
@@ -1043,7 +1045,7 @@ export default function CandidateDetail() {
       {/* Occupational health record modal */}
       <Modal open={ohOpen} onClose={() => setOhOpen(false)} title="Add OH / immunisation record">
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Kind">
               <select className={inputCls} value={ohForm.kind} onChange={(e) => setOhForm({ ...ohForm, kind: e.target.value })}>
                 <option value="immunisation">Immunisation</option>
@@ -1059,7 +1061,7 @@ export default function CandidateDetail() {
           <Field label="Name" full>
             <input className={inputCls} placeholder="e.g. Hepatitis B, TB / BCG" value={ohForm.name} onChange={(e) => setOhForm({ ...ohForm, name: e.target.value })} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Date">
               <input type="date" className={inputCls} value={ohForm.record_date} onChange={(e) => setOhForm({ ...ohForm, record_date: e.target.value })} />
             </Field>

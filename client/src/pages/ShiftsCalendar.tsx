@@ -317,7 +317,7 @@ export default function ShiftsCalendar() {
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Date *</label>
               <input
@@ -337,7 +337,7 @@ export default function ShiftsCalendar() {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className={labelCls}>Start</label>
               <input
@@ -363,7 +363,7 @@ export default function ShiftsCalendar() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Pay rate £/hr</label>
               <input

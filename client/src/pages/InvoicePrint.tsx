@@ -31,7 +31,7 @@ export default function InvoicePrint() {
     : inv.status === 'cancelled' ? 'CANCELLED' : inv.status === 'sent' ? 'SENT' : 'DRAFT';
 
   return (
-    <div className="mx-auto max-w-3xl bg-white p-8 print:p-0">
+    <div className="mx-auto max-w-3xl bg-white p-4 sm:p-8 print:p-0">
       <div className="mb-8 flex items-start justify-between border-b-2 border-slate-800 pb-5">
         <div>
           <img src="/sanitaslogo.png" alt="Sanitas" className="h-10 w-auto print:h-8" />
@@ -64,6 +64,7 @@ export default function InvoicePrint() {
         </div>
       </div>
 
+      <div className="overflow-x-auto print:overflow-x-visible">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b-2 border-slate-800 text-left text-[11px] uppercase tracking-wide text-slate-500">
@@ -90,6 +91,7 @@ export default function InvoicePrint() {
           </tr>
         </tfoot>
       </table>
+      </div>
 
       {inv.notes && (
         <div className="mt-6">

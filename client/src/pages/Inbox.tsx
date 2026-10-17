@@ -147,10 +147,10 @@ export default function InboxPage() {
         title="Communications"
         subtitle={`${activities.length} touchpoints logged · ${calls} calls · ${emails} emails`}
       >
-        <div className="flex gap-1 rounded-xl bg-slate-900/5 p-1">
+        <div className="scroll-thin flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-900/5 p-1">
           {(['activity', 'outbox'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
+              className={clsx('shrink-0 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-medium capitalize',
                 tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
               {t === 'activity' ? 'Activity log' : 'Outbox'}
             </button>
@@ -416,7 +416,7 @@ function Outbox() {
           <div className="w-full max-w-lg glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">New message</h2>
             <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <select className={inputCls} value={cForm.channel} onChange={(e) => setCForm({ ...cForm, channel: e.target.value })}>
                   <option value="whatsapp">WhatsApp</option>
                   <option value="email">Email</option>

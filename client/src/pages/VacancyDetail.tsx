@@ -697,8 +697,8 @@ export default function VacancyDetail() {
 
       {/* Edit modal */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Vacancy" wide>
-        <form onSubmit={saveEdit} className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <form onSubmit={saveEdit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <Field label="Title">
               <input required value={editForm.title} onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))} className={inputCls} />
             </Field>
@@ -742,12 +742,12 @@ export default function VacancyDetail() {
           <Field label="Closes">
             <input type="date" value={editForm.closes_at} onChange={(e) => setEditForm((f) => ({ ...f, closes_at: e.target.value }))} className={inputCls} />
           </Field>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Field label="Description">
               <textarea rows={3} value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} className={inputCls} />
             </Field>
           </div>
-          <div className="col-span-2 flex justify-end gap-2 border-t border-slate-200/60 pt-4">
+          <div className="sm:col-span-2 flex justify-end gap-2 border-t border-slate-200/60 pt-4">
             <button type="button" className={btnGhost} onClick={() => setEditOpen(false)}>Cancel</button>
             <button type="submit" disabled={saving} className={clsx(btnPrimary, saving && 'opacity-60')}>
               {saving ? 'Saving…' : 'Save Changes'}
@@ -774,7 +774,7 @@ export default function VacancyDetail() {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Pay Rate (£/hr)">
               <input type="number" min="0" step="0.01" value={submitForm.pay_rate} onChange={(e) => setSubmitForm((f) => ({ ...f, pay_rate: e.target.value }))} className={inputCls} />
             </Field>

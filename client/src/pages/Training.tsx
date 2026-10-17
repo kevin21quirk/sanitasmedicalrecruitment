@@ -90,10 +90,10 @@ function Player({ mod, onClose }: { mod: Module; onClose: () => void }) {
   }, [go, idx, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="flex h-[78vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-slate-950 shadow-pop" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
+      <div className="flex h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-slate-950 shadow-pop sm:h-[78vh] sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         {/* header */}
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-3">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className={clsx('flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br text-white', mod.tint)}>
               <mod.icon className="h-4 w-4" />
@@ -114,7 +114,7 @@ function Player({ mod, onClose }: { mod: Module; onClose: () => void }) {
         </div>
 
         {/* progress segments */}
-        <div className="flex gap-1 px-5 pt-2.5">
+        <div className="flex gap-1 px-3 pt-2.5 sm:px-5">
           {mod.scenes.map((_, i) => (
             <button key={i} onClick={() => go(i)} className="h-1 flex-1 overflow-hidden rounded-full bg-white/15">
               <div className="h-full rounded-full bg-accent-400 transition-[width] duration-100"
@@ -124,13 +124,15 @@ function Player({ mod, onClose }: { mod: Module; onClose: () => void }) {
         </div>
 
         {/* stage — key forces remount so CSS animations replay per scene */}
-        <div className="m-4 min-h-0 flex-1">
+        <div className="m-2 min-h-0 flex-1 sm:m-4">
           <div key={idx} className="h-full">{scene.visual}</div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/10 px-5 py-2">
+        <div className="flex items-center justify-between border-t border-white/10 px-3 py-2 sm:px-5">
           <p className="flex items-center gap-2 text-[11px] text-sky-200/50">
-            <GraduationCap className="h-3.5 w-3.5" /> Space = pause · arrows = skip · Esc = close
+            <GraduationCap className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Space = pause · arrows = skip · Esc = close</span>
+            <span className="sm:hidden">Tap the controls to skip</span>
           </p>
           {idx === mod.scenes.length - 1 && !playing && (
             <button className="text-[11px] font-semibold text-accent-400 hover:text-accent-500" onClick={() => go(0)}>Watch again</button>

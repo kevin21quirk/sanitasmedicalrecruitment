@@ -60,10 +60,10 @@ export default function Invoices() {
         <button className={btnPrimary} onClick={() => setNewOpen(true)}><Plus className="h-4 w-4" /> New invoice</button>
       </PageHeader>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-slate-900/5 p-1 w-fit">
+      <div className="scroll-thin mb-4 flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-900/5 p-1">
         {(['invoices', 'debtors', 'payroll', 'margin'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
+            className={clsx('shrink-0 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-medium capitalize',
               tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
             {t === 'debtors' ? 'Aged debtors' : t === 'payroll' ? 'Payroll export' : t === 'margin' ? 'Margin' : 'Invoices'}
           </button>
@@ -144,8 +144,8 @@ function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose:
         <h2 className="font-display text-lg font-semibold">Generate invoice</h2>
         <p className="mt-1 text-xs text-slate-500">Pulls all approved, uninvoiced timesheets for the client in the period (6.6).</p>
         {err && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{err}</p>}
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Client</span>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="sm:col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Client</span>
             <select className={inputCls} value={f.client_id} onChange={(e) => setF({ ...f, client_id: e.target.value })}>
               <option value="">Select…</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -156,7 +156,7 @@ function NewInvoice({ clients, onClose, onSaved }: { clients: Client[]; onClose:
             <input type="date" className={inputCls} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></label>
           <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Payment terms (days)</span>
             <input type="number" className={inputCls} value={f.due_days} onChange={(e) => setF({ ...f, due_days: +e.target.value })} /></label>
-          <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
+          <label className="sm:col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
             <input className={inputCls} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. October week 2 invoice" /></label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
@@ -209,7 +209,8 @@ function InvoiceDetail({ inv, onClose, onChanged }: {
           <Badge value={inv.status} />
         </div>
         {inv.notes && <p className="mt-2 rounded-lg bg-slate-900/[0.035] px-3 py-2 text-xs text-slate-600">{inv.notes}</p>}
-        <table className="mt-4 w-full text-sm">
+        <div className="scroll-thin mt-4 overflow-x-auto">
+        <table className="w-full text-sm">
           <thead><tr className="border-b border-slate-200/60 text-left text-[10px] uppercase tracking-wide text-slate-400">
             <th className="py-2">Description</th><th>Hours</th><th>Rate</th><th className="text-right">Amount</th>
           </tr></thead>
@@ -228,6 +229,7 @@ function InvoiceDetail({ inv, onClose, onChanged }: {
             <td className="text-right text-sm font-bold text-ink">{gbp2(inv.subtotal)}</td>
           </tr></tfoot>
         </table>
+        </div>
         {err && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{err}</p>}
         {inv.status === 'sent' && (
           <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
@@ -407,7 +409,7 @@ function Payroll() {
             <p className="mt-1 text-xs text-slate-500">
               {fmtDate(from)} – {fmtDate(to)} · provisional-v1 · PAYE {data.paye.length} rows ({data.totals.paye_hours}h · {gbp2(data.totals.paye_amount)}) · Ltd {data.ltd.length} rows ({data.totals.ltd_hours}h · {gbp2(data.totals.ltd_amount)})
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(['paye', 'ltd'] as const).map((g) => {
                 const accepted = data[g], rejected = data.rejected[g];
                 return (

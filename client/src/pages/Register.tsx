@@ -118,7 +118,7 @@ export default function Register() {
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
       {step === 0 && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="First name *"><input className={inputCls} value={p.first_name ?? ''} onChange={(e) => set('first_name', e.target.value)} /></Field>
           <Field label="Last name *"><input className={inputCls} value={p.last_name ?? ''} onChange={(e) => set('last_name', e.target.value)} /></Field>
           <Field label="Role *" full>
@@ -136,7 +136,7 @@ export default function Register() {
       )}
 
       {step === 1 && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Email"><input type="email" className={inputCls} value={p.email ?? ''} onChange={(e) => set('email', e.target.value)} /></Field>
           <Field label="Mobile (WhatsApp) *"><input className={inputCls} value={p.phone ?? ''} onChange={(e) => set('phone', e.target.value)} /></Field>
           <Field label="Address" full><input className={inputCls} value={p.address ?? ''} onChange={(e) => set('address', e.target.value)} /></Field>
@@ -159,7 +159,7 @@ export default function Register() {
       )}
 
       {step === 2 && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Preferred shifts">
             <select className={inputCls} value={p.preferred_shift ?? ''} onChange={(e) => set('preferred_shift', e.target.value)}>
               <option value="">Flexible</option>
@@ -204,7 +204,7 @@ export default function Register() {
               })}
             </div>
           </Field>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Do you drive / car share?">
               <select className={inputCls} value={p.driving ?? ''} onChange={(e) => set('driving', e.target.value)}>
                 <option value="">—</option>
@@ -302,7 +302,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <label className={clsx('block', full && 'col-span-2')}>
+    <label className={clsx('block', full && 'sm:col-span-2')}>
       <span className={fieldCls}>{label}</span>
       {children}
     </label>

@@ -204,13 +204,13 @@ function ConnectionCard({ connection, onChanged }: { connection: Connection | nu
       <CardHeader title="Automatic connection" subtitle="Beta — provider profile ready for when an API exists."
         action={<Badge value={connection ? 'valid' : 'pending'} label={connection ? 'Configured' : 'Not configured'} />} />
       <div className="space-y-3 px-5 py-4">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">DBS provider</span>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="sm:col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">DBS provider</span>
             <select className={inputCls} value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}>
               <option value="">Who runs your checks?…</option>
               {PROVIDERS.map((p) => <option key={p} value={p}>{p}</option>)}
             </select></label>
-          <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">API endpoint URL <span className="font-normal text-slate-400">(if the provider offers one)</span></span>
+          <label className="sm:col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">API endpoint URL <span className="font-normal text-slate-400">(if the provider offers one)</span></span>
             <input className={inputCls} placeholder={govUk ? 'gov.uk has no API — leave blank' : 'https://api.provider.co.uk/…'}
               value={f.endpoint} onChange={(e) => setF({ ...f, endpoint: e.target.value })} /></label>
           <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Organisation ref</span>

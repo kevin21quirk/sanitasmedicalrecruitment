@@ -61,10 +61,10 @@ export default function Requests() {
         <button className={btnPrimary} onClick={() => setNewOpen(true)}><Plus className="h-4 w-4" /> Log request</button>
       </PageHeader>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-slate-900/5 p-1 w-fit">
+      <div className="scroll-thin mb-4 flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-900/5 p-1">
         {(['pipeline', 'requests', 'availability'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
+            className={clsx('shrink-0 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-medium capitalize',
               tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
             {t === 'pipeline' ? 'Pipeline' : t === 'requests' ? `Requests (${stats.open} open)` : 'Availability board'}
           </button>
@@ -137,7 +137,7 @@ function PipelineBoard({ requests, onAllocate }: { requests: ShiftRequest[]; onA
       {visible.map((stage) => {
         const rows = groups.get(stage.key)!;
         return (
-          <div key={stage.key} className="w-64 shrink-0">
+          <div key={stage.key} className="w-56 shrink-0 sm:w-64">
             <div className={clsx('h-1 rounded-t-xl', stage.bar)} />
             <div className={clsx('rounded-b-xl bg-slate-900/[0.035] p-2.5 min-h-32', stage.key === 'cancelled' && 'opacity-70')}>
               <div className="mb-2 flex items-center justify-between px-1">
@@ -208,7 +208,7 @@ function NewRequest({ clients, onClose, onSaved }: { clients: Client[]; onClose:
       <div className="w-full max-w-lg glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-display text-lg font-semibold">Log a shift request</h2>
         <p className="mt-1 text-xs text-slate-500">For requests that arrive by phone or email (portal requests appear automatically, 3.0).</p>
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Client *" full>
             <select className={inputCls} value={f.client_id} onChange={(e) => setF({ ...f, client_id: e.target.value })}>
               <option value="">Select…</option>
@@ -436,7 +436,7 @@ function AvailabilityBoard() {
 
 function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <label className={clsx('block', full && 'col-span-2')}>
+    <label className={clsx('block', full && 'sm:col-span-2')}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       {children}
     </label>

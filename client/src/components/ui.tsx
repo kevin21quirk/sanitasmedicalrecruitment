@@ -83,7 +83,7 @@ export function Card({ children, className, solid }: { children: ReactNode; clas
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-slate-200/60 px-5 py-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200/60 px-5 py-4">
       <div>
         <h3 className="font-display text-[15px] font-semibold text-ink">{title}</h3>
         {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
@@ -229,8 +229,8 @@ export function Modal({ open, onClose, title, subtitle, children, wide, size, fo
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
-        {footer && <div className="flex items-center justify-end gap-2 border-t border-slate-200/60 px-6 py-4">{footer}</div>}
+        <div className="px-4 py-5 sm:px-6">{children}</div>
+        {footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200/60 px-4 py-4 sm:px-6">{footer}</div>}
       </div>
     </div>
   );
@@ -254,8 +254,8 @@ export function Drawer({ open, onClose, title, subtitle, children, width = 'max-
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="scroll-thin flex-1 overflow-y-auto px-6 py-5">{children}</div>
-        {footer && <div className="flex items-center justify-end gap-2 border-t border-slate-200/60 px-6 py-4">{footer}</div>}
+        <div className="scroll-thin flex-1 overflow-y-auto px-4 py-5 sm:px-6">{children}</div>
+        {footer && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200/60 px-4 py-4 sm:px-6">{footer}</div>}
       </div>
     </div>
   );
@@ -272,7 +272,7 @@ export function PageHeader({ title, subtitle, children, eyebrow }: {
         <h1 className="font-display text-2xl font-bold text-ink">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-2">{children}</div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -281,13 +281,13 @@ export function Tabs<T extends string>({ tabs, value, onChange }: {
   tabs: { key: T; label: string; count?: number }[]; value: T; onChange: (k: T) => void;
 }) {
   return (
-    <div className="inline-flex gap-1 rounded-xl bg-slate-900/5 p-1">
+    <div className="scroll-thin inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-900/5 p-1">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={clsx(
-            'flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors',
+            'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors',
             value === t.key ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-800'
           )}
         >
@@ -429,7 +429,7 @@ export const btnDanger =
 
 export function Field({ label, children, full, hint }: { label: string; children: ReactNode; full?: boolean; hint?: string }) {
   return (
-    <label className={clsx('block', full && 'col-span-2')}>
+    <label className={clsx('block', full && 'sm:col-span-2')}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-[11px] text-slate-400">{hint}</span>}

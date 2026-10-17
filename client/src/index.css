@@ -59,6 +59,9 @@ html {
 body {
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  /* Never let a wide child push a page-level horizontal scrollbar —
+     intentional inner scroll regions still scroll via overflow-x-auto. */
+  overflow-x: clip;
   background:
     radial-gradient(1100px 600px at -10% -10%, rgb(24 99 220 / 0.14), transparent 60%),
     radial-gradient(900px 520px at 110% 0%, rgb(1 174 240 / 0.14), transparent 60%),

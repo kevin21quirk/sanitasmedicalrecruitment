@@ -366,7 +366,7 @@ export default function Candidates() {
                       )}
                     </div>
                     {open && !done && (
-                      <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-900/[0.03] p-2.5">
+                      <div className="mt-2 grid grid-cols-1 gap-2 rounded-lg bg-slate-900/[0.03] p-2.5 sm:grid-cols-2">
                         <Field label="Issue date"><input type="date" className={inputCls} value={reqForm.issue_date}
                           onChange={(e) => setReqForm({ ...reqForm, issue_date: e.target.value })} /></Field>
                         <Field label="Expiry date"><input type="date" className={inputCls} value={reqForm.expiry_date}
@@ -377,7 +377,7 @@ export default function Candidates() {
                           <input type="file" className="w-full text-xs text-slate-500 file:mr-2 file:rounded-lg file:border-0 file:bg-brand-500/10 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-brand-700"
                             onChange={(e) => setReqForm({ ...reqForm, file: e.target.files?.[0] ?? null })} />
                         </Field>
-                        <div className="col-span-2 flex justify-end">
+                        <div className="flex justify-end sm:col-span-2">
                           <button className={btnPrimary} disabled={reqSaving} onClick={() => recordReq(t)}>
                             {reqSaving ? 'Saving…' : 'Save record'}
                           </button>
@@ -409,7 +409,7 @@ export default function Candidates() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Login email *"><input type="email" className={inputCls} value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} /></Field>
                   <Field label="Temporary password *" hint="min 8 chars — they'll be asked to change it">
@@ -426,7 +426,7 @@ export default function Candidates() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="First name *"><input className={inputCls} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></Field>
             <Field label="Last name *"><input className={inputCls} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></Field>
             <Field label="Role">
@@ -457,7 +457,7 @@ export default function Candidates() {
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </Field>
-            {formError && <p className="col-span-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{formError}</p>}
+            {formError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 sm:col-span-2">{formError}</p>}
           </div>
         )}
       </Modal>

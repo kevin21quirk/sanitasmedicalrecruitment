@@ -64,13 +64,13 @@ function Home() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {tiles.map((t) => (
           <Link key={t.to} to={t.to}
-            className={clsx('glass rounded-2xl px-4 py-3.5 text-center transition hover:-translate-y-0.5',
+            className={clsx('glass rounded-2xl px-2 py-3 text-center transition hover:-translate-y-0.5 sm:px-4 sm:py-3.5',
               t.urgent && 'ring-1 ring-amber-400/60')}>
-            <p className={clsx('font-display text-2xl font-bold', t.urgent ? 'text-amber-600' : 'text-brand-700')}>{t.n}</p>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-500">{t.label}</p>
+            <p className={clsx('font-display text-xl font-bold sm:text-2xl', t.urgent ? 'text-amber-600' : 'text-brand-700')}>{t.n}</p>
+            <p className="mt-0.5 text-[10px] font-medium leading-tight text-slate-500 sm:text-[11px]">{t.label}</p>
           </Link>
         ))}
       </div>
@@ -221,7 +221,7 @@ function Requests() {
           <div className="w-full max-w-lg glass-pop rounded-3xl p-6 animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold">Request cover</h2>
             <p className="mt-1 text-xs text-slate-500">Email to the office works too — requests land in the same list (4.7).</p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Date *"><input type="date" className={inputCls} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
               <Field label="Shift type">
                 <select className={inputCls} value={f.shift_type} onChange={(e) => setF({ ...f, shift_type: e.target.value })}>
@@ -449,7 +449,7 @@ export { Rota as SiteRota };
 
 function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <label className={clsx('block', full && 'col-span-2')}>
+    <label className={clsx('block', full && 'sm:col-span-2')}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       {children}
     </label>

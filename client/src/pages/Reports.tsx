@@ -70,10 +70,10 @@ export default function Reports() {
   return (
     <div>
       <PageHeader title="Reports" subtitle="Agency performance — revenue, recruiters, compliance and shift outcomes.">
-        <div className="flex gap-1 rounded-lg bg-slate-900/5 p-1">
+        <div className="scroll-thin flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-900/5 p-1">
           {(['performance', 'operations'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
+              className={clsx('shrink-0 whitespace-nowrap rounded-md px-4 py-1.5 text-xs font-medium capitalize',
                 tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
               {t === 'operations' ? 'Shift operations (7.x)' : 'Performance'}
             </button>

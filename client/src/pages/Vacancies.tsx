@@ -410,7 +410,7 @@ export default function Vacancies() {
 
       {/* New vacancy modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Vacancy" wide>
-        <form onSubmit={submit} className="grid grid-cols-2 gap-4">
+        <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Care Home *">
             <select required value={form.client_id} onChange={set('client_id')} className={inputCls}>
               <option value="">Select client…</option>
@@ -455,13 +455,13 @@ export default function Vacancies() {
           <Field label="Start Date">
             <input type="date" value={form.start_date} onChange={set('start_date')} className={inputCls} />
           </Field>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Field label="Description">
               <textarea rows={3} value={form.description} onChange={set('description')} className={inputCls} />
             </Field>
           </div>
-          {formErr && <p className="col-span-2 text-xs font-medium text-red-600">{formErr}</p>}
-          <div className="col-span-2 flex justify-end gap-2 border-t border-slate-200/60 pt-4">
+          {formErr && <p className="sm:col-span-2 text-xs font-medium text-red-600">{formErr}</p>}
+          <div className="sm:col-span-2 flex justify-end gap-2 border-t border-slate-200/60 pt-4">
             <button type="button" className={btnGhost} onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="submit" disabled={saving} className={clsx(btnPrimary, saving && 'opacity-60')}>
               {saving ? 'Creating…' : 'Create Vacancy'}

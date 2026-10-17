@@ -33,7 +33,7 @@ export default function ComplianceFile() {
   const c = data.candidate;
 
   return (
-    <div className="mx-auto max-w-3xl bg-white p-8 print:p-0">
+    <div className="mx-auto max-w-3xl bg-white p-4 sm:p-8 print:p-0">
       <div className="mb-6 flex items-start justify-between border-b-2 border-slate-800 pb-4">
         <div>
           <img src="/sanitaslogo.png" alt="Sanitas" className="h-10 w-auto print:h-8" />
@@ -72,6 +72,7 @@ export default function ComplianceFile() {
 
       <section className="mb-6">
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">Documents & checks</h2>
+        <div className="overflow-x-auto print:overflow-x-visible">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-300 text-left text-[11px] uppercase tracking-wide text-slate-500">
@@ -99,6 +100,7 @@ export default function ComplianceFile() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       {!!data.register_checks.length && (
@@ -107,6 +109,7 @@ export default function ComplianceFile() {
             Register checks
             <span className="ml-2 text-[10px] font-normal normal-case text-slate-400">recorded by staff — not independently verified by this system</span>
           </h2>
+          <div className="overflow-x-auto print:overflow-x-visible">
           <table className="w-full text-sm">
             <tbody>
               {data.register_checks.map((r) => (
@@ -119,6 +122,7 @@ export default function ComplianceFile() {
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 
@@ -127,6 +131,7 @@ export default function ComplianceFile() {
           <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">
             Occupational health <span className="ml-2 text-[10px] font-normal normal-case text-slate-400">restricted section</span>
           </h2>
+          <div className="overflow-x-auto print:overflow-x-visible">
           <table className="w-full text-sm">
             <tbody>
               {data.oh_records.map((o) => (
@@ -140,6 +145,7 @@ export default function ComplianceFile() {
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 

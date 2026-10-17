@@ -288,12 +288,12 @@ export function Stage({ children, title, narration }: {
   return (
     <div className="tr-stage flex h-full flex-col">
       {title && (
-        <p className="tr-rise shrink-0 px-6 pt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-accent-400 sm:px-8">{title}</p>
+        <p className="tr-rise shrink-0 px-4 pt-3 text-[10px] font-bold uppercase tracking-[0.18em] text-accent-400 sm:px-8 sm:pt-5 sm:text-[11px]">{title}</p>
       )}
-      <div className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-6 pb-4 pt-3 sm:px-8">{children}</div>
-      <div className="shrink-0 px-5 pb-5">
-        <div className="tr-rise rounded-2xl bg-white/95 px-5 py-3.5 shadow-xl" style={delay(1, 400)}>
-          <p className="text-[13px] font-medium leading-relaxed text-ink">{narration}</p>
+      <div className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-3 pb-2 pt-2 sm:px-8 sm:pb-4 sm:pt-3">{children}</div>
+      <div className="shrink-0 px-3 pb-3 sm:px-5 sm:pb-5">
+        <div className="tr-rise rounded-2xl bg-white/95 px-4 py-2.5 shadow-xl sm:px-5 sm:py-3.5" style={delay(1, 400)}>
+          <p className="text-[12px] font-medium leading-relaxed text-ink sm:text-[13px]">{narration}</p>
         </div>
       </div>
     </div>
@@ -350,7 +350,7 @@ export function Frame({ nav, url = '', eyebrow, title, sub, actions, children, c
       </div>
       <div className="flex min-h-0 flex-1">
         {/* sidebar */}
-        <div className="flex w-[84px] shrink-0 flex-col bg-gradient-to-b from-[#081c38] to-[#0c2c56] px-1.5 py-1.5">
+        <div className="flex w-14 shrink-0 flex-col bg-gradient-to-b from-[#081c38] to-[#0c2c56] px-1.5 py-1.5 min-[520px]:w-[84px]">
           <div className="rounded-md bg-white/95 px-1.5 py-1 text-center ring-1 ring-white/60">
             <span className="text-[7px] font-black tracking-tight text-brand-700">SANITAS</span>
           </div>
@@ -508,7 +508,7 @@ export function AppModal({ title, sub, at = 0, children, footer, wide }: {
 // Right-hand drawer replica (allocation drawer etc.)
 export function Drawer({ title, at = 0, children }: { title: string; at?: number; children: ReactNode }) {
   return (
-    <div className="tr-right absolute inset-y-0 right-0 z-40 w-60 overflow-hidden border-l border-slate-200 bg-white p-2.5 shadow-2xl" style={{ animationDelay: `${at}ms` }}>
+    <div className="tr-right absolute inset-y-0 right-0 z-40 w-44 overflow-hidden border-l border-slate-200 bg-white p-2.5 shadow-2xl min-[520px]:w-60" style={{ animationDelay: `${at}ms` }}>
       <p className="font-display text-[11px] font-bold text-ink">{title}</p>
       <div className="mt-2">{children}</div>
     </div>
@@ -568,7 +568,7 @@ export function Phone({ title, children, at = 0 }: { title: string; children: Re
 // Green success toast replica
 export function Toast({ children, at = 0 }: { children: ReactNode; at?: number }) {
   return (
-    <div className="tr-pop absolute left-1/2 top-2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-emerald-600 px-2.5 py-1 text-[8px] font-semibold text-white shadow-lg" style={{ animationDelay: `${at}ms` }}>
+    <div className="tr-pop absolute left-1/2 top-2 z-50 max-w-[92%] -translate-x-1/2 truncate whitespace-nowrap rounded-lg bg-emerald-600 px-2.5 py-1 text-[8px] font-semibold text-white shadow-lg" style={{ animationDelay: `${at}ms` }}>
       {children}
     </div>
   );

@@ -94,11 +94,11 @@ export default function Settings() {
   return (
     <div>
       <PageHeader eyebrow="Workspace" title="Settings & data" subtitle="Your profile, accounts, configuration, audit trail and data rights">
-        <div className="flex gap-1 rounded-xl bg-slate-900/5 p-1">
+        <div className="scroll-thin flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-900/5 p-1">
           {(['profile', 'accounts', 'settings', 'audit', 'data'] as const).map((t) => (
             <button key={t} disabled={!['profile', 'accounts'].includes(t) && !isAdmin}
               onClick={() => { setTab(t); if (t === 'audit' && !auditRows) loadAudit(); }}
-              className={clsx('rounded-lg px-4 py-1.5 text-xs font-medium capitalize disabled:opacity-40',
+              className={clsx('shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-xs font-medium capitalize disabled:opacity-40',
                 tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
               {t === 'audit' ? 'Audit log' : t === 'data' ? 'Data rights' : t === 'settings' ? 'Settings' : t === 'profile' ? 'My profile' : 'Accounts'}
             </button>
