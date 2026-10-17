@@ -26,6 +26,7 @@ import Timesheets from './pages/Timesheets';
 import Invoices from './pages/Invoices';
 import Compliance from './pages/Compliance';
 import ComplianceFile from './pages/ComplianceFile';
+import InvoicePrint from './pages/InvoicePrint';
 import InboxPage from './pages/Inbox';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
@@ -276,8 +277,9 @@ function Gate() {
   if (!account) return <Login />;
   if (account.mustReset) return <ForceReset />;
   if (account.kind !== 'staff') return <Portal account={account} />;
-  // Printable compliance file renders without the app shell (2.11)
+  // Printable documents render without the app shell (2.11)
   if (/^\/candidates\/\d+\/file$/.test(location.pathname)) return <ComplianceFile />;
+  if (/^\/invoices\/\d+\/print$/.test(location.pathname)) return <InvoicePrint />;
   return <StaffApp />;
 }
 

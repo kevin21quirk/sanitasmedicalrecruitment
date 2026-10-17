@@ -323,7 +323,8 @@ r.delete('/invoices/:id', async (req, res, next) => {
 r.get('/invoices/:id', async (req, res, next) => {
   try {
     const { rows: inv } = await query(
-      `SELECT i.*, cl.name AS client_name, cl.address AS client_address, cl.billing_email
+      `SELECT i.*, cl.name AS client_name, cl.address AS client_address, cl.town AS client_town,
+              cl.postcode AS client_postcode, cl.billing_email
        FROM invoices i JOIN clients cl ON cl.id = i.client_id WHERE i.id = $1`, [req.params.id]);
     if (!inv[0]) return res.status(404).json({ error: 'Not found' });
     const { rows: lines } = await query(`SELECT * FROM invoice_lines WHERE invoice_id = $1 ORDER BY id`, [req.params.id]);

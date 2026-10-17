@@ -247,7 +247,7 @@ function InvoiceDetail({ inv, onClose, onChanged }: {
           {(inv.status === 'draft' || inv.status === 'sent') && (
             <button className={btnGhost} disabled={busy} onClick={cancel}>Cancel invoice</button>
           )}
-          <button className={btnGhost} onClick={() => window.print()}>Print / PDF</button>
+          <button className={btnGhost} onClick={() => window.open(`/invoices/${inv.id}/print`, '_blank')}>Print / PDF</button>
           <button className={btnGhost} onClick={onClose}>Close</button>
         </div>
       </div>
