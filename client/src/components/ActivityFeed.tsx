@@ -1,7 +1,7 @@
 import { Activity } from '../lib/types';
 import { ago } from '../lib/format';
 import { Avatar, EmptyState } from './ui';
-import { Phone, Mail, Users, FileText, MessageSquare, ArrowRightLeft, Inbox } from 'lucide-react';
+import { Phone, Mail, Users, FileText, MessageSquare, MessageCircle, ArrowRightLeft, Inbox } from 'lucide-react';
 
 const ICONS = {
   call: Phone,
@@ -9,6 +9,7 @@ const ICONS = {
   meeting: Users,
   note: FileText,
   sms: MessageSquare,
+  whatsapp: MessageCircle,
   status_change: ArrowRightLeft,
 } as const;
 

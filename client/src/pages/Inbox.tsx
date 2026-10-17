@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import clsx from 'clsx';
 import {
-  Inbox, Phone, Mail, Users, MessageSquare, FileText, ArrowRightLeft, Send,
+  Inbox, Phone, Mail, Users, MessageSquare, MessageCircle, FileText, ArrowRightLeft, Send,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { Activity, User, Candidate, Client, Vacancy, Message } from '../lib/types';
@@ -17,6 +17,7 @@ const TYPE_FILTERS = [
   { key: 'email', label: 'Emails', icon: Mail },
   { key: 'meeting', label: 'Meetings', icon: Users },
   { key: 'sms', label: 'SMS', icon: MessageSquare },
+  { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { key: 'note', label: 'Notes', icon: FileText },
   { key: 'status_change', label: 'Status changes', icon: ArrowRightLeft },
 ] as const;
@@ -27,6 +28,7 @@ const COMPOSE_TYPES: { key: Activity['type']; label: string }[] = [
   { key: 'meeting', label: 'Meeting' },
   { key: 'note', label: 'Note' },
   { key: 'sms', label: 'SMS' },
+  { key: 'whatsapp', label: 'WhatsApp' },
 ];
 
 type EntType = 'candidate' | 'client' | 'vacancy';
@@ -113,7 +115,7 @@ export default function InboxPage() {
         type,
         subject: subject.trim(),
         body: body.trim() || null,
-        direction: ['call', 'email', 'sms'].includes(type) ? direction : null,
+        direction: ['call', 'email', 'sms', 'whatsapp'].includes(type) ? direction : null,
         user_id: CURRENT_USER,
       });
       const u = users.find((x) => x.id === CURRENT_USER);
@@ -137,7 +139,7 @@ export default function InboxPage() {
 
   if (!activities) return <Spinner label="Loading communications…" />;
 
-  const directed = ['call', 'email', 'sms'].includes(type);
+  const directed = ['call', 'email', 'sms', 'whatsapp'].includes(type);
   const calls = typeCounts['call'] ?? 0;
   const emails = typeCounts['email'] ?? 0;
 
@@ -305,17 +307,26 @@ function Outbox() {
   const [msgs, setMsgs] = useState<OutboxMessage[] | null>(null);
   const [filter, setFilter] = useState<'queued' | 'sent' | 'all'>('queued');
   const [composing, setComposing] = useState(false);
-  const [cForm, setCForm] = useState({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '', candidate_id: '', send_now: false });
-  const [workers, setWorkers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+  const blankForm = { channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '', candidate_id: '', entity_type: '', entity_id: '', send_now: false };
+  const [cForm, setCForm] = useState(blankForm);
+  const [workers, setWorkers] = useState<{ id: number; first_name: string; last_name: string; phone: string | null; email: string | null }[]>([]);
+  const [homes, setHomes] = useState<{ id: number; name: string; phone: string | null; email: string | null }[]>([]);
   const [emailProvider, setEmailProvider] = useState(false);
 
   useEffect(() => { api.get<{ email_configured: boolean }>('/messages/config').then((c) => setEmailProvider(c.email_configured)).catch(() => {}); }, []);
+  // Load recipients once the composer opens — workers + care homes for
+  // whatsapp/email, workers only needed for in-app.
   useEffect(() => {
-    if (composing && cForm.channel === 'inapp' && !workers.length) {
-      api.get<{ data: { id: number; first_name: string; last_name: string }[] }>('/candidates?limit=100&sort=name&dir=asc')
+    if (!composing) return;
+    if (!workers.length) {
+      api.get<{ data: { id: number; first_name: string; last_name: string; phone: string | null; email: string | null }[] }>('/candidates?limit=200&sort=name&dir=asc')
         .then((r) => setWorkers(r.data)).catch(() => {});
     }
-  }, [composing, cForm.channel, workers.length]);
+    if (!homes.length) {
+      api.get<{ id: number; name: string; phone: string | null; email: string | null }[]>('/clients')
+        .then(setHomes).catch(() => {});
+    }
+  }, [composing, workers.length, homes.length]);
 
   const load = () => {
     const qs = filter === 'all' ? '' : `?status=${filter}`;
@@ -329,15 +340,38 @@ function Outbox() {
     load();
   };
 
+  const pickRecipient = (key: string) => {
+    if (!key) return setCForm((f) => ({ ...f, entity_type: '', entity_id: '' }));
+    const [kind, id] = key.split(':');
+    if (kind === 'w') {
+      const w = workers.find((x) => x.id === +id);
+      if (w) setCForm((f) => ({
+        ...f, entity_type: 'candidate', entity_id: id,
+        to_name: `${w.first_name} ${w.last_name}`,
+        to_contact: (f.channel === 'whatsapp' ? w.phone : w.email) ?? f.to_contact,
+      }));
+    } else {
+      const h = homes.find((x) => x.id === +id);
+      if (h) setCForm((f) => ({
+        ...f, entity_type: 'client', entity_id: id,
+        to_name: h.name,
+        to_contact: (f.channel === 'whatsapp' ? h.phone : h.email) ?? f.to_contact,
+      }));
+    }
+  };
+
   const compose = async () => {
     try {
       const msg = await api.post<OutboxMessage>('/messages', {
-        ...cForm,
+        channel: cForm.channel, to_name: cForm.to_name, subject: cForm.subject, body: cForm.body,
         to_contact: cForm.channel === 'inapp' ? null : cForm.to_contact,
         candidate_id: cForm.channel === 'inapp' ? +cForm.candidate_id : null,
+        entity_type: cForm.entity_type || null,
+        entity_id: cForm.entity_id ? +cForm.entity_id : null,
+        send_now: cForm.send_now,
       });
       setComposing(false);
-      setCForm({ channel: 'whatsapp', to_name: '', to_contact: '', subject: '', body: '', candidate_id: '', send_now: false });
+      setCForm(blankForm);
       load();
       const link = msg.wa_link ?? (msg.status === 'queued' ? msg.mailto_link : null);
       if (link) window.open(link, '_blank');
@@ -417,7 +451,14 @@ function Outbox() {
             <h2 className="font-display text-lg font-semibold">New message</h2>
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <select className={inputCls} value={cForm.channel} onChange={(e) => setCForm({ ...cForm, channel: e.target.value })}>
+                <select className={inputCls} value={cForm.channel} onChange={(e) => setCForm((f) => {
+                  const channel = e.target.value;
+                  // Re-derive the contact field when a recipient is already picked
+                  const rec = f.entity_type === 'candidate'
+                    ? workers.find((x) => x.id === +f.entity_id)
+                    : f.entity_type === 'client' ? homes.find((x) => x.id === +f.entity_id) : undefined;
+                  return { ...f, channel, to_contact: (channel === 'whatsapp' ? rec?.phone : rec?.email) ?? f.to_contact };
+                })}>
                   <option value="whatsapp">WhatsApp</option>
                   <option value="email">Email</option>
                   <option value="inapp">In-app message</option>
@@ -428,7 +469,16 @@ function Outbox() {
                     {workers.map((w) => <option key={w.id} value={w.id}>{w.first_name} {w.last_name}</option>)}
                   </select>
                 ) : (
-                  <input className={inputCls} placeholder="Name" value={cForm.to_name} onChange={(e) => setCForm({ ...cForm, to_name: e.target.value })} />
+                  <select className={inputCls} value={`${cForm.entity_type === 'candidate' ? 'w' : cForm.entity_type === 'client' ? 'h' : ''}:${cForm.entity_id}`}
+                    onChange={(e) => pickRecipient(e.target.value === ':' ? '' : e.target.value)}>
+                    <option value=":">Type contact manually…</option>
+                    <optgroup label="Workers">
+                      {workers.map((w) => <option key={w.id} value={`w:${w.id}`}>{w.first_name} {w.last_name}{(cForm.channel === 'whatsapp' ? w.phone : w.email) ? '' : ' (no contact on file)'}</option>)}
+                    </optgroup>
+                    <optgroup label="Care homes">
+                      {homes.map((h) => <option key={h.id} value={`h:${h.id}`}>{h.name}{(cForm.channel === 'whatsapp' ? h.phone : h.email) ? '' : ' (no contact on file)'}</option>)}
+                    </optgroup>
+                  </select>
                 )}
               </div>
               {cForm.channel === 'inapp' ? (
@@ -436,8 +486,18 @@ function Outbox() {
                   Delivered to the worker's portal inbox immediately — never sent by email or SMS, so it can safely reference operational detail.
                 </p>
               ) : (
-                <input className={inputCls} placeholder={cForm.channel === 'whatsapp' ? 'Mobile number' : 'Email address'}
-                  value={cForm.to_contact} onChange={(e) => setCForm({ ...cForm, to_contact: e.target.value })} />
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <input className={inputCls} placeholder="Name" value={cForm.to_name} onChange={(e) => setCForm({ ...cForm, to_name: e.target.value })} />
+                    <input className={inputCls} placeholder={cForm.channel === 'whatsapp' ? 'Mobile number' : 'Email address'}
+                      value={cForm.to_contact} onChange={(e) => setCForm({ ...cForm, to_contact: e.target.value })} />
+                  </div>
+                  {cForm.channel === 'whatsapp' && (
+                    <p className="rounded-lg bg-emerald-500/8 px-3 py-2 text-[11px] text-slate-500">
+                      Opens WhatsApp with the message pre-filled — you press send, it's logged here automatically.
+                    </p>
+                  )}
+                </>
               )}
               {cForm.channel === 'email' && (
                 <>

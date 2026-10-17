@@ -164,7 +164,7 @@ export interface Offer {
 export interface Message {
   id: number;
   direction: string;
-  channel: 'email' | 'whatsapp' | 'system';
+  channel: 'email' | 'whatsapp' | 'inapp' | 'system';
   to_name: string | null;
   to_contact: string | null;
   subject: string | null;
@@ -368,7 +368,7 @@ export interface Activity {
   entity_type: 'candidate' | 'client' | 'vacancy' | 'placement';
   entity_id: number;
   entity_name?: string;
-  type: 'call' | 'email' | 'meeting' | 'note' | 'sms' | 'status_change';
+  type: 'call' | 'email' | 'meeting' | 'note' | 'sms' | 'whatsapp' | 'status_change';
   subject: string | null;
   body: string | null;
   direction: 'inbound' | 'outbound' | null;
