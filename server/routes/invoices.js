@@ -377,6 +377,7 @@ async function payrollCandidates(from, to, engagement) {
       hours: s.paid_hours, uplift_rule: s.uplift_rule, uplift_multiplier: s.uplift_multiplier,
       amount: fromPence(s.pay_amount_pence == null ? null : +s.pay_amount_pence),
       amount_pence: s.pay_amount_pence == null ? null : +s.pay_amount_pence,
+      already_exported: !!s.payroll_export_id,
     };
     if (reasons.length) rejected.push({ ...row, reasons }); else accepted.push(row);
   }

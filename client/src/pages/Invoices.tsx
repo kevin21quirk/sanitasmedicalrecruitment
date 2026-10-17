@@ -304,7 +304,7 @@ interface PayrollPreview {
   totals: { paye_hours: number; paye_amount: number | string; ltd_hours: number; ltd_amount: number | string };
 }
 interface PayrollRow { shift_id: number; worker: string; payroll_ref: string | null; date: string; shift_type: string; hours: string | null; uplift_rule: string; uplift_multiplier: string; amount: string; client: string }
-interface RejectedRow extends PayrollRow { reasons: string[] }
+interface RejectedRow extends PayrollRow { reasons: string[]; already_exported?: boolean }
 interface PayrollRun { id: number; engagement: string; period_from: string; period_to: string; shift_count: number; total: string; rejected: { shift_id: number; reasons: string[] }[]; created_by_name?: string; created_at: string }
 
 function Payroll() {
@@ -316,9 +316,10 @@ function Payroll() {
   const [previewing, setPreviewing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [err, setErr] = useState('');
+  const [notice, setNotice] = useState('');
   const loadRuns = () => api.get<PayrollRun[]>('/payroll/runs').then(setRuns).catch(() => {});
   const run = async (open = false) => {
-    setPreviewing(true); setErr('');
+    setPreviewing(true); setErr(''); setNotice('');
     try {
       const d = await api.get<PayrollPreview>(`/payroll?from=${from}&to=${to}`);
       setData(d);
@@ -333,6 +334,8 @@ function Payroll() {
     try {
       const res = await api.post<{ run: PayrollRun; rejected: RejectedRow[] }>(`/payroll/export`, { from, to, engagement });
       window.open(`/api/payroll/runs/${res.run.id}/csv`, '_blank');
+      setPreviewOpen(false);
+      setNotice(`Exported ${res.run.shift_count} ${engagement.toUpperCase()} shifts — run #${res.run.id} (${gbp2(res.run.total)}). CSV opened in a new tab.`);
       void run(); void loadRuns();
     } catch (e) { setErr((e as Error).message); }
     finally { setExporting(null); }
@@ -356,9 +359,11 @@ function Payroll() {
           ))}
           {!rows.length && <li className="px-5 py-4 text-xs text-slate-400">None exportable in this period.</li>}
           {rejected.map((r2) => (
-            <li key={r2.shift_id} className="flex items-center justify-between gap-3 bg-red-50/50 px-5 py-2 text-sm">
-              <span className="text-ink">{r2.worker} <span className="text-[11px] text-slate-400">· {fmtDate(r2.date)}</span></span>
-              <span className="flex items-center gap-1 text-[11px] font-medium text-red-600"><AlertTriangle className="h-3 w-3" /> {r2.reasons.join('; ')}</span>
+            <li key={r2.shift_id} className={clsx('flex items-center justify-between gap-3 px-5 py-2 text-sm', !r2.already_exported && 'bg-red-50/50')}>
+              <span className={r2.already_exported ? 'text-slate-400' : 'text-ink'}>{r2.worker} <span className="text-[11px] text-slate-400">· {fmtDate(r2.date)}</span></span>
+              {r2.already_exported
+                ? <span className="text-[11px] text-slate-400">{r2.reasons.join('; ')}</span>
+                : <span className="flex items-center gap-1 text-[11px] font-medium text-red-600"><AlertTriangle className="h-3 w-3" /> {r2.reasons.join('; ')}</span>}
             </li>
           ))}
         </ul>
@@ -376,6 +381,7 @@ function Payroll() {
           <button className={btnPrimary} disabled={previewing} onClick={() => run(true)}>{previewing ? 'Loading…' : 'Preview'}</button>
         </div>
         {err && <p className="mx-5 mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
+        {notice && <p className="mx-5 mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">{notice}</p>}
       </Card>
       {data && ['paye', 'ltd'].map((g) => groupCard(g as 'paye' | 'ltd',
         g === 'paye' ? 'PAYE workers' : 'Limited company workers',
@@ -421,11 +427,20 @@ function Payroll() {
                       ))}
                       {!accepted.length && <li className="text-[11px] text-slate-400">None exportable.</li>}
                     </ul>
-                    {!!rejected.length && (
+                    {!!rejected.filter((r2) => !r2.already_exported).length && (
                       <div className="mt-2 border-t border-red-200/60 pt-2">
-                        {rejected.map((r2) => (
+                        {rejected.filter((r2) => !r2.already_exported).map((r2) => (
                           <p key={r2.shift_id} className="flex items-start gap-1 text-[11px] text-red-600">
                             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {r2.worker} · {fmtDate(r2.date)} — {r2.reasons.join('; ')}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {!!rejected.filter((r2) => r2.already_exported).length && (
+                      <div className="mt-2 border-t border-slate-200/60 pt-2">
+                        {rejected.filter((r2) => r2.already_exported).map((r2) => (
+                          <p key={r2.shift_id} className="text-[11px] text-slate-400">
+                            {r2.worker} · {fmtDate(r2.date)} — {r2.reasons.join('; ')}
                           </p>
                         ))}
                       </div>
