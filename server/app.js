@@ -27,6 +27,7 @@ import portal from './routes/portal.js';
 import requests from './routes/requests.js';
 import invoices from './routes/invoices.js';
 import neuven from './routes/neuven.js';
+import dbs from './routes/dbs.js';
 import admin from './routes/admin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +56,7 @@ app.use('/api/shifts', requireAuth, shifts);
 app.use('/api', requireAuth, requests); // requests/availability/offers/allocation
 app.use('/api', requireAuth, invoices); // timesheets workflow, invoices, payroll, margin
 app.use('/api', requireAuth, neuven); // neuven feed (beta): connection profile + CSV import
+app.use('/api', requireAuth, dbs); // dbs checks (beta): provider profile + results import
 app.use('/api/admin', requireAuth, admin); // audit, settings, retention, exports, digest
 app.use('/api/compliance', requireAuth, compliance);
 app.use('/api/activities', requireAuth, activities);

@@ -114,7 +114,7 @@ export default function ComplianceFile() {
                   <td className="w-44 py-1.5 text-xs uppercase text-slate-500">{r.register === 'nmc' ? 'NMC' : 'DBS Update Service'}</td>
                   <td className="py-1.5 text-xs text-slate-600">{r.identifier ?? '—'}</td>
                   <td className="py-1.5 text-xs text-slate-600">{fmtDateTime(r.checked_at)}</td>
-                  <td className="py-1.5"><Badge value={r.result === 'clear' ? 'valid' : r.result === 'lapsed' ? 'expired' : 'pending'} label={`${r.result} (staff-recorded)`} /></td>
+                  <td className="py-1.5"><Badge value={r.result === 'clear' ? 'valid' : r.result === 'lapsed' ? 'expired' : 'pending'} label={`${r.result} (${r.source === 'csv_import' ? 'csv import' : 'staff-recorded'})`} /></td>
                 </tr>
               ))}
             </tbody>

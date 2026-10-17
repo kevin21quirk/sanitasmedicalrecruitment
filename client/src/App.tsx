@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
-  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap,
+  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap, Fingerprint,
   type LucideIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -24,6 +24,7 @@ import Placements from './pages/Placements';
 import ShiftsCalendar from './pages/ShiftsCalendar';
 import Requests from './pages/Requests';
 import Neuven from './pages/Neuven';
+import Dbs from './pages/Dbs';
 import Timesheets from './pages/Timesheets';
 import Invoices from './pages/Invoices';
 import Compliance from './pages/Compliance';
@@ -42,6 +43,7 @@ const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean; beta?: 
   { to: '/shifts', label: 'Shift Calendar', icon: CalendarDays },
   { to: '/requests', label: 'Requests', icon: ClipboardList },
   { to: '/neuven', label: 'Neuven', icon: PlugZap, beta: true },
+  { to: '/dbs', label: 'DBS Checks', icon: Fingerprint, beta: true },
   { to: '/timesheets', label: 'Timesheets', icon: Clock3 },
   { to: '/invoices', label: 'Invoicing', icon: PoundSterling },
   { to: '/compliance', label: 'Compliance', icon: ShieldCheck },
@@ -63,7 +65,7 @@ function Logo() {
 const NAV_GROUPS: { label: string; items: typeof NAV }[] = [
   { label: 'Overview', items: NAV.filter((n) => ['/'].includes(n.to)) },
   { label: 'Recruitment', items: NAV.filter((n) => ['/candidates', '/clients', '/vacancies', '/placements'].includes(n.to)) },
-  { label: 'Operations', items: NAV.filter((n) => ['/shifts', '/requests', '/neuven', '/timesheets', '/invoices', '/compliance'].includes(n.to)) },
+  { label: 'Operations', items: NAV.filter((n) => ['/shifts', '/requests', '/neuven', '/dbs', '/timesheets', '/invoices', '/compliance'].includes(n.to)) },
   { label: 'Workspace', items: NAV.filter((n) => ['/inbox', '/reports', '/settings'].includes(n.to)) },
 ];
 
@@ -202,6 +204,7 @@ function StaffApp() {
             <Route path="/shifts" element={<ShiftsCalendar />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/neuven" element={<Neuven />} />
+            <Route path="/dbs" element={<Dbs />} />
             <Route path="/timesheets" element={<Timesheets />} />
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/compliance" element={<Compliance />} />

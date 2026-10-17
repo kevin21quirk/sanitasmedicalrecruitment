@@ -72,9 +72,10 @@ export interface RegisterCheck {
   register: 'dbs_update_service' | 'nmc';
   identifier: string | null;
   checked_at: string;
-  result: 'clear' | 'not_found' | 'lapsed' | 'error';
+  result: 'clear' | 'not_found' | 'lapsed' | 'error' | 'attention';
   checked_by_name?: string | null;
   notes: string | null;
+  source?: string;
 }
 
 export interface CandidateBlock {
