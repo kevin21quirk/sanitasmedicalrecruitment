@@ -24,7 +24,14 @@ r.get('/requests', async (req, res, next) => {
               (SELECT string_agg(c.first_name || ' ' || c.last_name, ', ')
                FROM shifts s JOIN candidates c ON c.id = s.candidate_id
                WHERE s.request_id = sr.id AND s.status != 'cancelled') AS filled_by,
-              (SELECT COUNT(*) FROM offers o WHERE o.request_id = sr.id AND o.status = 'sent') AS pending_offers
+              (SELECT COUNT(*) FROM offers o WHERE o.request_id = sr.id AND o.status = 'sent') AS pending_offers,
+              (SELECT COUNT(*) FROM shifts s WHERE s.request_id = sr.id AND s.status = 'booked') AS booked_count,
+              (SELECT COUNT(*) FROM shifts s WHERE s.request_id = sr.id
+                AND s.status = 'completed' AND s.timesheet_status IN ('not_submitted','submitted')) AS awaiting_ts,
+              (SELECT COUNT(*) FROM shifts s WHERE s.request_id = sr.id
+                AND s.timesheet_status = 'approved' AND s.invoice_id IS NULL) AS to_invoice,
+              (SELECT COUNT(*) FROM shifts s WHERE s.request_id = sr.id
+                AND (s.timesheet_status = 'paid' OR s.invoice_id IS NOT NULL)) AS finished_count
        FROM shift_requests sr
        JOIN clients cl ON cl.id = sr.client_id
        LEFT JOIN individuals i ON i.id = sr.individual_id

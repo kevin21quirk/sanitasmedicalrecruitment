@@ -135,6 +135,10 @@ export interface ShiftRequest {
   filled_count?: number;
   filled_by?: string | null;
   pending_offers?: number;
+  booked_count?: number;
+  awaiting_ts?: number;
+  to_invoice?: number;
+  finished_count?: number;
 }
 
 export interface Offer {

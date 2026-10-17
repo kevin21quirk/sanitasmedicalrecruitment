@@ -4,6 +4,7 @@ import { ClipboardList, Plus, RefreshCw, Send, Star, UserCheck, X, Ban, CheckCir
 import clsx from 'clsx';
 import { api, ApiError } from '../lib/api';
 import { fmtDate } from '../lib/format';
+import { pipelineGroups, STAGES } from '../lib/pipeline';
 import { Client, ShiftRequest } from '../lib/types';
 import { Badge, Card, CardHeader, EmptyState, PageHeader, Spinner, btnPrimary, btnGhost, inputCls, fmtStatus } from '../components/ui';
 import { BlockReason, BookingGap, BookingConflict } from '../components/BlockReason';
@@ -29,7 +30,7 @@ const SHIFT_TYPES = ['day', 'night', 'early', 'late', 'long_day', 'sleep_in'];
 const ROLES = ['Registered Nurse', 'Senior Nurse', 'Healthcare Assistant', 'Senior HCA', 'Support Worker'];
 
 export default function Requests() {
-  const [tab, setTab] = useState<'requests' | 'availability'>('requests');
+  const [tab, setTab] = useState<'pipeline' | 'requests' | 'availability'>('pipeline');
   const [requests, setRequests] = useState<ShiftRequest[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,16 +62,18 @@ export default function Requests() {
       </PageHeader>
 
       <div className="mb-4 flex gap-1 rounded-lg bg-slate-900/5 p-1 w-fit">
-        {(['requests', 'availability'] as const).map((t) => (
+        {(['pipeline', 'requests', 'availability'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx('rounded-md px-4 py-1.5 text-xs font-medium capitalize',
               tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-            {t === 'requests' ? `Requests (${stats.open} open)` : 'Availability board'}
+            {t === 'pipeline' ? 'Pipeline' : t === 'requests' ? `Requests (${stats.open} open)` : 'Availability board'}
           </button>
         ))}
       </div>
 
-      {tab === 'requests' ? (
+      {tab === 'pipeline' ? (
+        loading ? <Spinner /> : <PipelineBoard requests={requests} onAllocate={setAllocating} />
+      ) : tab === 'requests' ? (
         loading ? <Spinner /> : (
           <Card>
             {!requests.length ? (
@@ -119,6 +122,63 @@ export default function Requests() {
 
       {newOpen && <NewRequest clients={clients} onClose={() => setNewOpen(false)} onSaved={() => { setNewOpen(false); load(); }} />}
       {allocating && <AllocateDrawer request={allocating} onClose={() => setAllocating(null)} onDone={() => { setAllocating(null); load(); }} />}
+    </div>
+  );
+}
+
+// Colour-coded kanban of the request workflow — new → offered → filled →
+// booked → timesheet → invoice → paid. Each card sits in its earliest
+// outstanding stage; Allocate opens the allocation drawer in place.
+function PipelineBoard({ requests, onAllocate }: { requests: ShiftRequest[]; onAllocate: (r: ShiftRequest) => void }) {
+  const groups = pipelineGroups(requests);
+  const visible = STAGES.filter((s) => s.key !== 'cancelled' || groups.get('cancelled')!.length);
+  return (
+    <div className="scroll-thin flex gap-3 overflow-x-auto pb-3">
+      {visible.map((stage) => {
+        const rows = groups.get(stage.key)!;
+        return (
+          <div key={stage.key} className="w-64 shrink-0">
+            <div className={clsx('h-1 rounded-t-xl', stage.bar)} />
+            <div className={clsx('rounded-b-xl bg-slate-900/[0.035] p-2.5 min-h-32', stage.key === 'cancelled' && 'opacity-70')}>
+              <div className="mb-2 flex items-center justify-between px-1">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                  <span className={clsx('h-2 w-2 rounded-full', stage.dot)} />{stage.label}
+                </p>
+                <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 shadow-sm">{rows.length}</span>
+              </div>
+              <div className="space-y-2">
+                {rows.map((r) => (
+                  <div key={r.id} className={clsx('rounded-lg border border-slate-200/70 border-l-4 bg-white p-2.5 shadow-sm', stage.card)}>
+                    <div className="flex items-start justify-between gap-1">
+                      <p className="text-xs font-semibold text-ink leading-tight">{r.client_name}</p>
+                      {r.urgency === 'urgent' && r.status === 'pending' && <Badge value="expired" label="Urgent" />}
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {fmtDate(r.date)} · {fmtStatus(r.shift_type)}
+                      {r.start_time && ` ${r.start_time.slice(0, 5)}–${r.end_time?.slice(0, 5)}`}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {r.role ?? 'Any role'}{r.qty > 1 && ` · ${r.filled_count ?? 0}/${r.qty} filled`}
+                      {!!+(r.pending_offers ?? 0) && ` · ${r.pending_offers} offer${+r.pending_offers! > 1 ? 's' : ''} out`}
+                      {r.individual_name && ` · ${r.individual_name}`}
+                    </p>
+                    {r.filled_by && <p className="mt-1 text-[11px] font-medium text-emerald-600">{r.filled_by}</p>}
+                    <div className="mt-2 flex items-center justify-end">
+                      {(stage.key === 'new' || stage.key === 'offered' || stage.key === 'part_filled') && (
+                        <button className={clsx(btnPrimary, 'px-2.5 py-1 text-[11px]')} onClick={() => onAllocate(r)}>Allocate</button>
+                      )}
+                      {stage.key === 'booked' && <Link to="/shifts" className="text-[11px] font-medium text-brand-600 hover:underline">Shift calendar →</Link>}
+                      {stage.key === 'awaiting_ts' && <Link to="/timesheets" className="text-[11px] font-medium text-brand-600 hover:underline">Approve timesheet →</Link>}
+                      {stage.key === 'to_invoice' && <Link to="/invoices" className="text-[11px] font-medium text-brand-600 hover:underline">Invoice →</Link>}
+                    </div>
+                  </div>
+                ))}
+                {!rows.length && <p className="px-1 pb-2 text-[11px] text-slate-400">Nothing here</p>}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

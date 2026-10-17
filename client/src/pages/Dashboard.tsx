@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { gbp, fmtDate, ago, isOverdue } from '../lib/format';
-import { Activity, Task, ComplianceDoc } from '../lib/types';
+import { pipelineGroups, requestStage, STAGES } from '../lib/pipeline';
+import { Activity, Task, ComplianceDoc, ShiftRequest } from '../lib/types';
 import { Card, CardHeader, Badge, Avatar, Spinner, PageHeader } from '../components/ui';
 import { ActivityFeed } from '../components/ActivityFeed';
 import clsx from 'clsx';
@@ -34,13 +35,19 @@ const STAGE_ORDER = ['open', 'sourcing', 'shortlisted', 'interview', 'offer', 'f
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [requests, setRequests] = useState<ShiftRequest[]>([]);
 
-  useEffect(() => { api.get<DashboardData>('/dashboard').then(setData); }, []);
+  useEffect(() => {
+    api.get<DashboardData>('/dashboard').then(setData);
+    api.get<ShiftRequest[]>('/requests').then(setRequests).catch(() => {});
+  }, []);
 
   if (!data) return <Spinner label="Loading dashboard…" />;
   const { kpis } = data;
   const pipeline = STAGE_ORDER.map((s) => ({ stage: s, count: +(data.pipeline.find((p) => p.stage === s)?.count ?? 0) }));
   const maxPipe = Math.max(...pipeline.map((p) => p.count), 1);
+  const reqGroups = pipelineGroups(requests);
+  const liveTotal = requests.filter((r) => requestStage(r) !== 'cancelled').length || 1;
 
   const cards = [
     { label: 'Revenue MTD', value: gbp(kpis.revenue_mtd), icon: TrendingUp, sub: `${gbp(kpis.margin_mtd)} margin`, to: '/reports' },
@@ -73,6 +80,37 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Workflow pipeline — colour-coded stages from request to paid */}
+      <Card className="mb-6">
+        <CardHeader
+          title="Workflow pipeline"
+          subtitle="Request → offers → booked → timesheet → invoice"
+          action={<Link to="/requests" className="text-xs font-medium text-brand-600 hover:text-brand-700">Open pipeline</Link>}
+        />
+        <div className="px-5 pb-4 pt-1">
+          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-900/5">
+            {STAGES.filter((s) => s.key !== 'cancelled').map((s) => {
+              const count = (reqGroups.get(s.key) ?? []).length;
+              return <div key={s.key} className={clsx('h-full', s.bar)} style={{ width: `${(count / liveTotal) * 100}%` }} title={`${s.label}: ${count}`} />;
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {STAGES.map((s) => {
+              const count = (reqGroups.get(s.key) ?? []).length;
+              const urgent = s.key === 'new' ? (reqGroups.get('new') ?? []).filter((r) => r.urgency === 'urgent').length : 0;
+              return (
+                <Link key={s.key} to="/requests" title={s.hint}
+                  className={clsx('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ring-1 ring-inset', s.chip)}>
+                  <span className={clsx('h-1.5 w-1.5 rounded-full', s.dot)} />
+                  {s.label} · {count}
+                  {!!urgent && <span className="text-red-600">({urgent} urgent)</span>}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         {/* Revenue chart */}
