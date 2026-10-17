@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
-  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap, Fingerprint,
+  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap, Fingerprint, GraduationCap,
   type LucideIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -25,6 +25,7 @@ import ShiftsCalendar from './pages/ShiftsCalendar';
 import Requests from './pages/Requests';
 import Neuven from './pages/Neuven';
 import Dbs from './pages/Dbs';
+import Training from './pages/Training';
 import Timesheets from './pages/Timesheets';
 import Invoices from './pages/Invoices';
 import Compliance from './pages/Compliance';
@@ -49,6 +50,7 @@ const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean; beta?: 
   { to: '/compliance', label: 'Compliance', icon: ShieldCheck },
   { to: '/inbox', label: 'Communications', icon: Inbox },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/training', label: 'Training', icon: GraduationCap },
   { to: '/settings', label: 'Settings', icon: Settings2 },
 ];
 
@@ -66,7 +68,7 @@ const NAV_GROUPS: { label: string; items: typeof NAV }[] = [
   { label: 'Overview', items: NAV.filter((n) => ['/'].includes(n.to)) },
   { label: 'Recruitment', items: NAV.filter((n) => ['/candidates', '/clients', '/vacancies', '/placements'].includes(n.to)) },
   { label: 'Operations', items: NAV.filter((n) => ['/shifts', '/requests', '/neuven', '/dbs', '/timesheets', '/invoices', '/compliance'].includes(n.to)) },
-  { label: 'Workspace', items: NAV.filter((n) => ['/inbox', '/reports', '/settings'].includes(n.to)) },
+  { label: 'Workspace', items: NAV.filter((n) => ['/inbox', '/reports', '/training', '/settings'].includes(n.to)) },
 ];
 
 function StaffApp() {
@@ -210,6 +212,7 @@ function StaffApp() {
             <Route path="/compliance" element={<Compliance />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/training" element={<Training />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
