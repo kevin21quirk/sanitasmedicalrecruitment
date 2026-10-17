@@ -185,7 +185,7 @@ function StaffApp() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 placeholder="Search candidates, clients, vacancies…"
-                className="w-full rounded-xl border border-slate-200/70 bg-white/60 py-1.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="w-full rounded-xl border border-slate-200/70 bg-white/60 py-1.5 pl-9 pr-3 text-base focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 lg:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const q = (e.target as HTMLInputElement).value;
@@ -262,7 +262,7 @@ function ForceReset() {
       await refresh();
     } catch (e2) { setErr(e2 instanceof Error ? e2.message : 'Failed'); setBusy(false); }
   };
-  const inp = 'w-full rounded-xl border border-slate-300/60 bg-white/70 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20';
+  const inp = 'w-full rounded-xl border border-slate-300/60 bg-white/70 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 lg:text-sm';
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <form onSubmit={submit} className="glass-pop w-full max-w-sm rounded-3xl p-7 animate-pop-in">

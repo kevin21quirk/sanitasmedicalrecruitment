@@ -417,8 +417,10 @@ export function useLocalGrid<T>(rows: T[], opts: { pageSize?: number } = {}) {
 }
 
 // ---------- form bits ----------
+// text-base (<lg) keeps iOS/Android from auto-zooming the viewport on focus —
+// anything under 16px triggers it and the zoom persists after navigation.
 export const inputCls =
-  'w-full rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-ink placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+  'w-full rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2 text-base text-ink placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 lg:text-sm';
 
 export const btnPrimary =
   'inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3.5 py-2 text-sm font-medium text-white shadow-sm shadow-brand-500/25 hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';

@@ -844,7 +844,7 @@ export default function CandidateDetail() {
               <select
                 value={actForm.type}
                 onChange={(e) => setActForm({ ...actForm, type: e.target.value })}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 lg:text-sm"
               >
                 {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{fmtStatus(t)}</option>)}
               </select>
