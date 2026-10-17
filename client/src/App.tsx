@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
-  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap, Fingerprint, GraduationCap,
+  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap, Fingerprint, GraduationCap, ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -73,11 +73,24 @@ const NAV_GROUPS: { label: string; items: typeof NAV }[] = [
 
 function StaffApp() {
   const [navOpen, setNavOpen] = useState(false);
+  const [navMore, setNavMore] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
   const { account, logout } = useAuth();
   const location = useLocation();
 
   // Close the drawer whenever the route changes
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
+
+  // Show a "more below" cue while the nav has hidden items underneath
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const check = () => setNavMore(el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
 
   const initials = account?.initials ??
     (account?.name ? account.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : '?');
@@ -108,7 +121,8 @@ function StaffApp() {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="scroll-thin flex-1 space-y-4 overflow-y-auto px-3 pb-4">
+        <div className="relative min-h-0 flex-1">
+        <nav ref={navRef} className="nav-rail scroll-thin h-full space-y-4 overflow-y-auto px-3 pb-4">
           {NAV_GROUPS.map((g) => (
             <div key={g.label}>
               <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-200/60">{g.label}</p>
@@ -138,6 +152,17 @@ function StaffApp() {
             </div>
           ))}
         </nav>
+        {navMore && (
+          <button
+            onClick={() => navRef.current?.scrollBy({ top: 180, behavior: 'smooth' })}
+            className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-gradient-to-t from-[#072341] via-[#072341]/85 to-transparent pb-1.5 pt-8 text-brand-200 transition-colors hover:text-white"
+            aria-label="Scroll down for more menu items"
+          >
+            <span className="text-[9px] font-bold uppercase tracking-[0.14em]">More</span>
+            <ChevronDown className="h-3.5 w-3.5 animate-bounce" />
+          </button>
+        )}
+        </div>
         <div className="border-t border-white/10 px-5 py-4">
           <p className="text-[10px] uppercase tracking-wider text-brand-300">Sanitas Ops v2.0</p>
           <p className="mt-0.5 text-[11px] text-brand-200">0800 999 8222</p>
