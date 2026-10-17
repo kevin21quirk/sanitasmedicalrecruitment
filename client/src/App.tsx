@@ -278,8 +278,14 @@ function Gate() {
   if (account.mustReset) return <ForceReset />;
   if (account.kind !== 'staff') return <Portal account={account} />;
   // Printable documents render without the app shell (2.11)
-  if (/^\/candidates\/\d+\/file$/.test(location.pathname)) return <ComplianceFile />;
-  if (/^\/invoices\/\d+\/print$/.test(location.pathname)) return <InvoicePrint />;
+  if (/^\/candidates\/\d+\/file$/.test(location.pathname) || /^\/invoices\/\d+\/print$/.test(location.pathname)) {
+    return (
+      <Routes>
+        <Route path="/candidates/:id/file" element={<ComplianceFile />} />
+        <Route path="/invoices/:id/print" element={<InvoicePrint />} />
+      </Routes>
+    );
+  }
   return <StaffApp />;
 }
 
