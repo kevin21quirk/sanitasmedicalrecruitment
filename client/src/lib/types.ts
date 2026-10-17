@@ -131,6 +131,7 @@ export interface ShiftRequest {
   urgency: 'normal' | 'urgent';
   source: string;
   notes: string | null;
+  external_ref?: string | null;
   offers?: Offer[];
   filled_count?: number;
   filled_by?: string | null;

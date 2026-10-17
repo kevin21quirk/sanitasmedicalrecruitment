@@ -365,6 +365,7 @@ CREATE TABLE IF NOT EXISTS shift_requests (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE shift_requests ADD COLUMN IF NOT EXISTS filled_at TIMESTAMPTZ; -- 7.2 fill-time
+ALTER TABLE shift_requests ADD COLUMN IF NOT EXISTS external_ref TEXT;      -- external booking ref (Neuven import dedup)
 
 -- 3.10 / 4.1 offers of shifts to workers
 CREATE TABLE IF NOT EXISTS offers (

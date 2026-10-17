@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, Briefcase,
-  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2,
+  CalendarDays, ShieldCheck, Inbox, BarChart3, Search, Bell, Clock3, Menu, X, LogOut, ClipboardList, PoundSterling, Settings2, PlugZap,
+  type LucideIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -22,6 +23,7 @@ import VacancyDetail from './pages/VacancyDetail';
 import Placements from './pages/Placements';
 import ShiftsCalendar from './pages/ShiftsCalendar';
 import Requests from './pages/Requests';
+import Neuven from './pages/Neuven';
 import Timesheets from './pages/Timesheets';
 import Invoices from './pages/Invoices';
 import Compliance from './pages/Compliance';
@@ -31,7 +33,7 @@ import InboxPage from './pages/Inbox';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
-const NAV = [
+const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean; beta?: boolean }[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/candidates', label: 'Candidates', icon: Users },
   { to: '/clients', label: 'Care Homes', icon: Building2 },
@@ -39,6 +41,7 @@ const NAV = [
   { to: '/placements', label: 'Placements', icon: Briefcase },
   { to: '/shifts', label: 'Shift Calendar', icon: CalendarDays },
   { to: '/requests', label: 'Requests', icon: ClipboardList },
+  { to: '/neuven', label: 'Neuven', icon: PlugZap, beta: true },
   { to: '/timesheets', label: 'Timesheets', icon: Clock3 },
   { to: '/invoices', label: 'Invoicing', icon: PoundSterling },
   { to: '/compliance', label: 'Compliance', icon: ShieldCheck },
@@ -60,7 +63,7 @@ function Logo() {
 const NAV_GROUPS: { label: string; items: typeof NAV }[] = [
   { label: 'Overview', items: NAV.filter((n) => ['/'].includes(n.to)) },
   { label: 'Recruitment', items: NAV.filter((n) => ['/candidates', '/clients', '/vacancies', '/placements'].includes(n.to)) },
-  { label: 'Operations', items: NAV.filter((n) => ['/shifts', '/requests', '/timesheets', '/invoices', '/compliance'].includes(n.to)) },
+  { label: 'Operations', items: NAV.filter((n) => ['/shifts', '/requests', '/neuven', '/timesheets', '/invoices', '/compliance'].includes(n.to)) },
   { label: 'Workspace', items: NAV.filter((n) => ['/inbox', '/reports', '/settings'].includes(n.to)) },
 ];
 
@@ -106,7 +109,7 @@ function StaffApp() {
             <div key={g.label}>
               <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-200/60">{g.label}</p>
               <div className="space-y-0.5">
-                {g.items.map(({ to, label, icon: Icon, end }) => (
+                {g.items.map(({ to, label, icon: Icon, end, beta }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -122,6 +125,9 @@ function StaffApp() {
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     {label}
+                    {beta && (
+                      <span className="ml-auto rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-400/30">Beta</span>
+                    )}
                   </NavLink>
                 ))}
               </div>
@@ -195,6 +201,7 @@ function StaffApp() {
             <Route path="/placements" element={<Placements />} />
             <Route path="/shifts" element={<ShiftsCalendar />} />
             <Route path="/requests" element={<Requests />} />
+            <Route path="/neuven" element={<Neuven />} />
             <Route path="/timesheets" element={<Timesheets />} />
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/compliance" element={<Compliance />} />
