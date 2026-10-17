@@ -277,6 +277,37 @@ export function PageHeader({ title, subtitle, children, eyebrow }: {
   );
 }
 
+// Horizontally-scrolling board (kanban/pipeline). Renders a thicker scrollbar
+// plus edge chevrons whenever the content can scroll that way — so it's
+// obvious there's more off-screen without keyboard or trackpad gestures.
+export function HScroller({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [canL, setCanL] = useState(false);
+  const [canR, setCanR] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      setCanL(el.scrollLeft > 4);
+      setCanR(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    };
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', check); ro.disconnect(); };
+  }, [children]);
+  const nudge = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * Math.max(280, (ref.current?.clientWidth ?? 400) - 80), behavior: 'smooth' });
+  const btn = 'absolute top-1/2 z-10 -translate-y-1/2 rounded-full border border-slate-200 bg-white/95 p-1.5 text-slate-500 shadow-md transition hover:text-brand-600 hover:shadow-lg';
+  return (
+    <div className="relative">
+      {canL && <button type="button" onClick={() => nudge(-1)} aria-label="Scroll left" className={clsx(btn, 'left-1.5')}><ChevronLeft className="h-4 w-4" /></button>}
+      <div ref={ref} className={clsx('scroll-x overflow-x-auto', className)}>{children}</div>
+      {canR && <button type="button" onClick={() => nudge(1)} aria-label="Scroll right" className={clsx(btn, 'right-1.5')}><ChevronRight className="h-4 w-4" /></button>}
+    </div>
+  );
+}
+
 export function Tabs<T extends string>({ tabs, value, onChange }: {
   tabs: { key: T; label: string; count?: number }[]; value: T; onChange: (k: T) => void;
 }) {

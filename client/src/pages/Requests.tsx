@@ -6,7 +6,7 @@ import { api, ApiError } from '../lib/api';
 import { fmtDate } from '../lib/format';
 import { pipelineGroups, STAGES } from '../lib/pipeline';
 import { Client, ShiftRequest } from '../lib/types';
-import { Badge, Card, CardHeader, EmptyState, PageHeader, Spinner, btnPrimary, btnGhost, inputCls, fmtStatus } from '../components/ui';
+import { Badge, Card, CardHeader, EmptyState, HScroller, PageHeader, Spinner, btnPrimary, btnGhost, inputCls, fmtStatus } from '../components/ui';
 import { BlockReason, BookingGap, BookingConflict } from '../components/BlockReason';
 
 interface EligibleWorker {
@@ -133,7 +133,7 @@ function PipelineBoard({ requests, onAllocate }: { requests: ShiftRequest[]; onA
   const groups = pipelineGroups(requests);
   const visible = STAGES.filter((s) => s.key !== 'cancelled' || groups.get('cancelled')!.length);
   return (
-    <div className="scroll-thin flex gap-3 overflow-x-auto pb-3">
+    <HScroller className="flex gap-3 pb-3">
       {visible.map((stage) => {
         const rows = groups.get(stage.key)!;
         return (
@@ -179,7 +179,7 @@ function PipelineBoard({ requests, onAllocate }: { requests: ShiftRequest[]; onA
           </div>
         );
       })}
-    </div>
+    </HScroller>
   );
 }
 

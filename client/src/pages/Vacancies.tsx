@@ -16,7 +16,7 @@ import { ago, gbp2 } from '../lib/format';
 import type { Client, Vacancy, VacancyStage } from '../lib/types';
 import {
   Avatar, Badge, btnGhost, btnPrimary, EmptyState, fmtStatus,
-  inputCls, Modal, PageHeader, Spinner,
+  HScroller, inputCls, Modal, PageHeader, Spinner,
 } from '../components/ui';
 
 const STAGES: VacancyStage[] = ['open', 'sourcing', 'shortlisted', 'interview', 'offer', 'filled'];
@@ -321,7 +321,7 @@ export default function Vacancies() {
         />
       ) : view === 'kanban' ? (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <div className="scroll-thin flex items-start gap-3 overflow-x-auto pb-4">
+          <HScroller className="flex items-start gap-3 pb-4">
             {STAGES.map((s) => (
               <StageColumn
                 key={s}
@@ -340,7 +340,7 @@ export default function Vacancies() {
                 onToggle={() => setExpandedClosed((p) => ({ ...p, [s]: !p[s] }))}
               />
             ))}
-          </div>
+          </HScroller>
           <DragOverlay>
             {activeDrag ? <div className="w-72 rotate-2 opacity-90"><VacancyCard v={activeDrag} /></div> : null}
           </DragOverlay>
