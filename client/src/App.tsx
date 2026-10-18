@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { AuthProvider, useAuth } from './lib/auth';
 import { api } from './lib/api';
 import { Avatar } from './components/ui';
+import { QuickLaunch, QuickLaunchButton, useQuickLaunch } from './components/QuickLaunch';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SignPage from './pages/SignPage';
@@ -77,6 +78,7 @@ function StaffApp() {
   const navRef = useRef<HTMLElement>(null);
   const { account, logout } = useAuth();
   const location = useLocation();
+  const launcher = useQuickLaunch(account?.id);
 
   // Close the drawer whenever the route changes
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
@@ -197,6 +199,7 @@ function StaffApp() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            <QuickLaunchButton onClick={() => launcher.setOpen(true)} />
             <NavLink to="/compliance" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <Bell className="h-4.5 w-4.5" />
             </NavLink>
@@ -243,6 +246,7 @@ function StaffApp() {
           </Routes>
         </main>
       </div>
+      <QuickLaunch open={launcher.open} onClose={() => launcher.setOpen(false)} name={account?.name} />
     </div>
   );
 }

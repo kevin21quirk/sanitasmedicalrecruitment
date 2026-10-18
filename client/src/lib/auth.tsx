@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await api.post('/auth/logout', {}).catch(() => {});
+    sessionStorage.clear(); // re-arm per-sign-in prompts (quick launch)
     setAccount(null);
   };
 

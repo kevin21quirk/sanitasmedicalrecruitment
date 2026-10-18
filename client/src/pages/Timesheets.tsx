@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Clock3, Send, CheckCheck, Banknote, Info } from 'lucide-react';
 import { api } from '../lib/api';
@@ -30,7 +30,8 @@ const actionBtn =
 
 export default function Timesheets() {
   const [rows, setRows] = useState<Shift[] | null>(null);
-  const [tab, setTab] = useState<TsStatus | 'all'>('all');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<TsStatus | 'all'>(() => (searchParams.get('status') as TsStatus | null) ?? 'all');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
 

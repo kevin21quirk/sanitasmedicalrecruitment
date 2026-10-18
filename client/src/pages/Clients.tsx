@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Plus, Building2, MapPin, BedDouble, Users, KanbanSquare, Briefcase, LayoutGrid, List,
 } from 'lucide-react';
@@ -66,7 +66,8 @@ export default function Clients() {
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [cqc, setCqc] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [modalOpen, setModalOpen] = useState(() => searchParams.get('new') === '1');
   const [form, setForm] = useState<ClientForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');

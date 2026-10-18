@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ClipboardList, Plus, RefreshCw, Send, Star, UserCheck, X, Ban, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { api, ApiError } from '../lib/api';
@@ -30,11 +30,15 @@ const SHIFT_TYPES = ['day', 'night', 'early', 'late', 'long_day', 'sleep_in'];
 const ROLES = ['Registered Nurse', 'Senior Nurse', 'Healthcare Assistant', 'Senior HCA', 'Support Worker'];
 
 export default function Requests() {
-  const [tab, setTab] = useState<'pipeline' | 'requests' | 'availability'>('pipeline');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<'pipeline' | 'requests' | 'availability'>(() => {
+    const t = searchParams.get('tab');
+    return t === 'requests' || t === 'availability' ? t : 'pipeline';
+  });
   const [requests, setRequests] = useState<ShiftRequest[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newOpen, setNewOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(() => searchParams.get('new') === '1');
   const [allocating, setAllocating] = useState<ShiftRequest | null>(null);
 
   const load = useCallback(() => {

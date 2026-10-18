@@ -45,7 +45,7 @@ export default function Candidates() {
   const [sort, setSort] = useState('created_at');
   const [dir, setDir] = useState<'asc' | 'desc'>('desc');
 
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd] = useState(() => searchParams.get('new') === '1');
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
