@@ -5,14 +5,15 @@ import {
   BarChart, Bar, CartesianGrid,
 } from 'recharts';
 import {
-  Users, Building2, KanbanSquare, Briefcase, TrendingUp, ShieldAlert,
-  ArrowUpRight, CalendarDays, CircleCheck, Circle, AlertTriangle,
+  Users, Building2, Briefcase, TrendingUp, ShieldAlert, ShieldCheck,
+  ArrowUpRight, CalendarDays, CircleCheck, Circle, AlertTriangle, ClipboardList, Percent, Stethoscope, HeartHandshake,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { gbp, fmtDate, ago, isOverdue } from '../lib/format';
 import { pipelineGroups, requestStage, STAGES } from '../lib/pipeline';
 import { Activity, Task, ComplianceDoc, ShiftRequest } from '../lib/types';
-import { Card, CardHeader, Badge, Avatar, Spinner, PageHeader } from '../components/ui';
+import { Card, CardHeader, Badge, Avatar, Spinner, PageHeader, ComplianceBar } from '../components/ui';
+import { KpiTile, SplitStat, StackedBar, Donut, HBars, StatusCell, VIZ, VIZ_SERIES, TOOLTIP_STYLE, TOOLTIP_CURSOR, num, pct } from '../components/charts';
 import { ActivityFeed } from '../components/ActivityFeed';
 import clsx from 'clsx';
 
@@ -29,9 +30,15 @@ interface DashboardData {
   tasksDue: Task[];
   pipeline: { stage: string; count: string }[];
   shiftsThisWeek: { shift_date: string; shift_type: string; status: string; candidate_name: string; client_name: string }[];
+  candidatesByRole: { role: string; count: string }[];
+  candidatesBySource: { source: string; count: string }[];
+  candidatesByStatus: { status: string; count: string }[];
+  requestStats: { pending: string; filled: string; cancelled: string; urgent: string; this_month: string; filled_this_month: string };
+  shiftOutcomes: { completed: string; booked: string; cancelled: string; no_show: string };
+  recentCandidates: { id: number; name: string; role: string; status: string; source: string | null; registered_at: string; last_worked_at: string | null; compliance_score: number; photo_file_id: number | null }[];
 }
 
-const STAGE_ORDER = ['open', 'sourcing', 'shortlisted', 'interview', 'offer', 'filled'];
+const isNurse = (role: string) => /nurse|rn|rmn|rgn/i.test(role);
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -43,42 +50,78 @@ export default function Dashboard() {
   }, []);
 
   if (!data) return <Spinner label="Loading dashboard…" />;
-  const { kpis } = data;
-  const pipeline = STAGE_ORDER.map((s) => ({ stage: s, count: +(data.pipeline.find((p) => p.stage === s)?.count ?? 0) }));
-  const maxPipe = Math.max(...pipeline.map((p) => p.count), 1);
+  const { kpis, requestStats: rq, shiftOutcomes: so } = data;
   const reqGroups = pipelineGroups(requests);
   const liveTotal = requests.filter((r) => requestStage(r) !== 'cancelled').length || 1;
 
-  const cards = [
-    { label: 'Revenue MTD', value: gbp(kpis.revenue_mtd), icon: TrendingUp, sub: `${gbp(kpis.margin_mtd)} margin`, to: '/reports' },
-    { label: 'Active Workers', value: kpis.active_placements, icon: Briefcase, sub: 'on placement now', to: '/placements' },
-    { label: 'Open Vacancies', value: kpis.open_vacancies, icon: KanbanSquare, sub: 'across all clients', to: '/vacancies' },
-    { label: 'Compliant Candidates', value: kpis.active_candidates, icon: Users, sub: `+${kpis.new_candidates_30d} this month`, to: '/candidates' },
-    { label: 'Active Clients', value: kpis.active_clients, icon: Building2, sub: 'care homes', to: '/clients' },
-    { label: 'Compliance Alerts', value: kpis.compliance_alerts, icon: ShieldAlert, sub: 'docs expired / expiring', to: '/compliance', alert: +kpis.compliance_alerts > 0 },
+  const statusCount = (s: string) => num(data.candidatesByStatus.find((x) => x.status === s)?.count);
+  const totalCandidates = data.candidatesByStatus.reduce((s, x) => s + num(x.count), 0);
+  const nurses = data.candidatesByRole.filter((r) => isNurse(r.role)).reduce((s, r) => s + num(r.count), 0);
+  const carers = data.candidatesByRole.filter((r) => !isNurse(r.role)).reduce((s, r) => s + num(r.count), 0);
+  const fillRate = pct(num(rq.filled), num(rq.filled) + num(rq.pending) + num(rq.cancelled));
+
+  const byRole = data.candidatesByRole.map((r, i) => ({ label: r.role, value: num(r.count), color: VIZ[VIZ_SERIES[i % VIZ_SERIES.length]] }));
+  const bySource = data.candidatesBySource.map((r, i) => ({ label: r.source, value: num(r.count), color: VIZ[VIZ_SERIES[i % VIZ_SERIES.length]] }));
+  const outcomes = [
+    { label: 'Completed', value: num(so.completed), color: VIZ.mint },
+    { label: 'Booked', value: num(so.booked), color: VIZ.brand },
+    { label: 'Cancelled', value: num(so.cancelled), color: VIZ.amber },
+    { label: 'No show', value: num(so.no_show), color: VIZ.coral },
+  ];
+  const statusBars = [
+    { label: 'Compliant', value: statusCount('compliant'), color: VIZ.mint },
+    { label: 'On assignment', value: statusCount('on_assignment'), color: VIZ.brand },
+    { label: 'In progress', value: statusCount('in_progress'), color: VIZ.amber },
+    { label: 'Dormant', value: statusCount('dormant'), color: VIZ.slate },
+    { label: 'Do not use', value: statusCount('do_not_use'), color: VIZ.coral },
   ];
 
   return (
     <div>
-      <PageHeader title="Recruitment Dashboard" subtitle="Live overview of candidates, clients, placements and compliance." />
+      <PageHeader eyebrow="Overview" title="Recruitment Dashboard" subtitle="Live overview of candidates, clients, placements and compliance." />
 
-      {/* KPI cards */}
+      {/* KPI tiles — coloured header band, big number */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        {cards.map(({ label, value, icon: Icon, sub, to, alert }) => (
-          <Link key={label} to={to}>
-            <Card className={clsx('group h-full p-4 transition-shadow hover:shadow-md', alert && 'ring-1 ring-red-200')}>
-              <div className="flex items-center justify-between">
-                <span className={clsx('flex h-8 w-8 items-center justify-center rounded-lg', alert ? 'bg-red-50 text-red-500' : 'bg-brand-500/10 text-brand-600')}>
-                  <Icon className="h-4 w-4" />
-                </span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-brand-500" />
-              </div>
-              <p className="mt-3 text-2xl font-bold tracking-tight text-ink">{value}</p>
-              <p className="text-xs font-medium text-slate-600">{label}</p>
-              <p className="mt-0.5 text-[11px] text-slate-400">{sub}</p>
-            </Card>
-          </Link>
-        ))}
+        <Link to="/candidates"><KpiTile label="Total Candidates" value={totalCandidates} icon={Users} tint="violet" sub={`+${kpis.new_candidates_30d} this month`} className="h-full" /></Link>
+        <Link to="/candidates?status=compliant"><KpiTile label="Compliant" value={kpis.active_candidates} icon={ShieldCheck} tint="mint" sub="ready to work" className="h-full" /></Link>
+        <Link to="/placements"><KpiTile label="On Placement" value={kpis.active_placements} icon={Briefcase} tint="brand" sub="active workers" className="h-full" /></Link>
+        <Link to="/requests"><KpiTile label="Open Requests" value={rq.pending} icon={ClipboardList} tint={num(rq.urgent) ? 'coral' : 'amber'} sub={num(rq.urgent) ? `${rq.urgent} urgent` : 'awaiting allocation'} className="h-full" /></Link>
+        <Link to="/reports"><KpiTile label="Fill Rate" value={`${fillRate}%`} icon={Percent} tint="accent" sub={`${rq.filled_this_month}/${rq.this_month} this month`} className="h-full" /></Link>
+        <Link to="/compliance" className="col-span-2 md:col-span-1">
+          <KpiTile label="Compliance Alerts" value={kpis.compliance_alerts} icon={ShieldAlert} tint={num(kpis.compliance_alerts) ? 'coral' : 'mint'} sub="expired / expiring" className="h-full" />
+        </Link>
+      </div>
+
+      {/* Second row — revenue, clients and workforce split */}
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Link to="/reports">
+          <Card className="tile tile-brand tile-ring flex h-full items-center gap-4 p-4">
+            <span className="tile-band flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"><TrendingUp className="h-5 w-5" /></span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Revenue MTD</p>
+              <p className="font-display text-2xl font-bold text-ink">{gbp(kpis.revenue_mtd)}</p>
+              <p className="text-[11px] text-slate-500">{gbp(kpis.margin_mtd)} margin</p>
+            </div>
+            <ArrowUpRight className="ml-auto h-4 w-4 text-slate-300" />
+          </Card>
+        </Link>
+        <Link to="/clients">
+          <Card className="tile tile-accent tile-ring flex h-full items-center gap-4 p-4">
+            <span className="tile-band flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"><Building2 className="h-5 w-5" /></span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Active Care Homes</p>
+              <p className="font-display text-2xl font-bold text-ink">{kpis.active_clients}</p>
+              <p className="text-[11px] text-slate-500">{kpis.open_vacancies} open vacancies</p>
+            </div>
+            <ArrowUpRight className="ml-auto h-4 w-4 text-slate-300" />
+          </Card>
+        </Link>
+        <KpiTile label="Workforce by Discipline" icon={Users} tint="navy" className="h-full">
+          <SplitStat items={[
+            { label: 'Nurses', value: nurses, tint: 'brand', icon: Stethoscope },
+            { label: 'Care staff', value: carers, tint: 'mint', icon: HeartHandshake },
+          ]} />
+        </KpiTile>
       </div>
 
       {/* Workflow pipeline — colour-coded stages from request to paid */}
@@ -88,8 +131,8 @@ export default function Dashboard() {
           subtitle="Request → offers → booked → timesheet → invoice"
           action={<Link to="/requests" className="text-xs font-medium text-brand-600 hover:text-brand-700">Open pipeline</Link>}
         />
-        <div className="px-5 pb-4 pt-1">
-          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-900/5">
+        <div className="px-5 pb-4 pt-3">
+          <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-900/5 ring-1 ring-white/70">
             {STAGES.filter((s) => s.key !== 'cancelled').map((s) => {
               const count = (reqGroups.get(s.key) ?? []).length;
               return <div key={s.key} className={clsx('h-full', s.bar)} style={{ width: `${(count / liveTotal) * 100}%` }} title={`${s.label}: ${count}`} />;
@@ -112,6 +155,73 @@ export default function Dashboard() {
         </div>
       </Card>
 
+      {/* Analytics row — stacked bar + recent candidates | donut + outcomes */}
+      <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="space-y-5 xl:col-span-2">
+          <Card>
+            <CardHeader title="Candidates by Role" subtitle="Active register split by discipline" />
+            <div className="px-5 pb-5 pt-3"><StackedBar segments={byRole} /></div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Recent Registrations"
+              subtitle="Latest candidates to join the register"
+              action={<Link to="/candidates" className="text-xs font-medium text-brand-600 hover:text-brand-700">All candidates</Link>}
+            />
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead className="grid-head">
+                  <tr>
+                    {['Candidate', 'Registered', 'Role', 'Status', 'Source', 'Compliance', 'Last worked'].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-[11px] font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/50">
+                  {data.recentCandidates.map((c) => (
+                    <tr key={c.id} className="grid-row">
+                      <td className="px-4 py-2">
+                        <Link to={`/candidates/${c.id}`} className="flex items-center gap-2 font-medium text-ink hover:text-brand-600">
+                          <Avatar name={c.name} photoId={c.photo_file_id} size="xs" />
+                          <span className="truncate">{c.name}</span>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2 text-slate-500">{fmtDate(c.registered_at)}</td>
+                      <td className="px-4 py-2 text-slate-600">{c.role}</td>
+                      <td className="px-4 py-2"><StatusCell value={c.status} /></td>
+                      <td className="px-4 py-2 text-slate-600">{c.source || '—'}</td>
+                      <td className="px-4 py-2"><ComplianceBar score={c.compliance_score} /></td>
+                      <td className="px-4 py-2 text-slate-500">{c.last_worked_at ? fmtDate(c.last_worked_at) : '—'}</td>
+                    </tr>
+                  ))}
+                  {!data.recentCandidates.length && (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">No candidates yet</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-5">
+          <Card>
+            <CardHeader title="Candidates by Source" subtitle="Where the register comes from" />
+            <div className="px-5 pb-5 pt-3"><Donut data={bySource} /></div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Shift Outcomes" subtitle="Last 90 days" action={<Link to="/shifts" className="text-xs font-medium text-brand-600 hover:text-brand-700">Calendar</Link>} />
+            <div className="px-5 pb-5 pt-3"><HBars rows={outcomes} /></div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Register Status" subtitle="All candidates by status" />
+            <div className="px-5 pb-5 pt-3"><HBars rows={statusBars} /></div>
+          </Card>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         {/* Revenue chart */}
         <Card className="xl:col-span-2">
@@ -121,55 +231,44 @@ export default function Dashboard() {
               <AreaChart data={data.revenue} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1863dc" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#1863dc" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={VIZ.brand} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={VIZ.brand} stopOpacity={0.02} />
                   </linearGradient>
                   <linearGradient id="mar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#01aef0" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#01aef0" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={VIZ.accent} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={VIZ.accent} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.18)" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => gbp(Number(v ?? 0))} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                <Area type="monotone" dataKey="revenue" stroke="#1863dc" strokeWidth={2.5} fill="url(#rev)" />
-                <Area type="monotone" dataKey="margin" stroke="#01aef0" strokeWidth={2.5} fill="url(#mar)" />
+                <Tooltip formatter={(v) => gbp(Number(v ?? 0))} contentStyle={TOOLTIP_STYLE} />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke={VIZ.brand} strokeWidth={2.5} fill="url(#rev)" />
+                <Area type="monotone" dataKey="margin" name="Margin" stroke={VIZ.accent} strokeWidth={2.5} fill="url(#mar)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* Pipeline */}
+        {/* Placements per month */}
         <Card>
-          <CardHeader title="Vacancy Pipeline" subtitle="Live roles by stage" />
-          <div className="space-y-3 px-5 py-4">
-            {pipeline.map(({ stage, count }) => (
-              <div key={stage}>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-medium capitalize text-slate-600">{stage}</span>
-                  <span className="font-semibold text-ink">{count}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-900/5">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-400 transition-all"
-                    style={{ width: `${(count / maxPipe) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="border-t border-slate-200/60 px-5 py-3">
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.placementsByMonth} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                  <Bar dataKey="count" fill="#1863dc" radius={[4, 4, 0, 0]} name="Placements" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <CardHeader title="Placements" subtitle="New placements per month" />
+          <div className="h-64 px-4 py-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.placementsByMonth} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="plc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={VIZ.accent} />
+                    <stop offset="100%" stopColor={VIZ.brand} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.18)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
+                <Bar dataKey="count" fill="url(#plc)" radius={[6, 6, 0, 0]} name="Placements" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </Card>
 
@@ -225,6 +324,7 @@ export default function Dashboard() {
                 <Badge value={t.priority} />
               </div>
             ))}
+            {!data.tasksDue.length && <p className="px-5 py-8 text-center text-sm text-slate-400">Nothing outstanding</p>}
           </div>
         </Card>
 
@@ -237,7 +337,7 @@ export default function Dashboard() {
         </Card>
 
         {/* This week's shifts */}
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-3">
           <CardHeader
             title="This Week's Shifts"
             subtitle="Booked and completed shifts"
@@ -252,7 +352,7 @@ export default function Dashboard() {
                   <p className="truncate text-xs text-slate-500">{s.client_name}</p>
                 </div>
                 <Badge value={s.shift_type} />
-                <Badge value={s.status} />
+                <StatusCell value={s.status} />
               </div>
             ))}
             {!data.shiftsThisWeek.length && <p className="px-5 py-8 text-center text-sm text-slate-400">No shifts booked this week</p>}

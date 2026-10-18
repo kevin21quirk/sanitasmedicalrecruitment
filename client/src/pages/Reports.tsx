@@ -18,7 +18,7 @@ interface ReportsData {
   monthlyRevenue: { month: string; revenue: string; pay: string; margin: string }[];
 }
 
-const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' };
+import { TOOLTIP_STYLE, TOOLTIP_CURSOR } from '../components/charts';
 
 export default function Reports() {
   const [tab, setTab] = useState<'performance' | 'operations'>('performance');
@@ -44,10 +44,10 @@ export default function Reports() {
   const maxPlacements = Math.max(...recruiters.map((r) => r.placements), 1);
 
   const pie = [
-    { name: 'Completed', value: +(data?.shiftStats.completed ?? 0), color: '#10b981' },
+    { name: 'Completed', value: +(data?.shiftStats.completed ?? 0), color: '#2fbf9a' },
     { name: 'Booked', value: +(data?.shiftStats.booked ?? 0), color: '#1863dc' },
     { name: 'Cancelled', value: +(data?.shiftStats.cancelled ?? 0), color: '#94a3b8' },
-    { name: 'No show', value: +(data?.shiftStats.no_show ?? 0), color: '#ef4444' },
+    { name: 'No show', value: +(data?.shiftStats.no_show ?? 0), color: '#f0707a' },
   ];
   const totalShifts = pie.reduce((s, p) => s + p.value, 0);
 
@@ -105,13 +105,13 @@ export default function Reports() {
           <div className="h-72 px-4 py-4">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthly} margin={{ top: 5, right: 10, left: 0, bottom: 0 }} barCategoryGap="25%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.18)" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => gbp(Number(v ?? 0))} contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f1f5f9' }} />
+                <Tooltip formatter={(v) => gbp(Number(v ?? 0))} contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
                 <Legend wrapperStyle={{ fontSize: 11 }} iconSize={9} />
                 <Bar dataKey="revenue" name="Revenue" fill="#1863dc" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="pay" name="Pay" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="pay" name="Pay" fill="#8b7cf6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="margin" name="Margin" fill="#01aef0" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -165,10 +165,10 @@ export default function Reports() {
           <div className="h-80 px-4 py-4">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={clients10} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.18)" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
                 <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v) => gbp(Number(v ?? 0))} contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f1f5f9' }} />
+                <Tooltip formatter={(v) => gbp(Number(v ?? 0))} contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
                 <Bar dataKey="revenue" name="Revenue" fill="#1863dc" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>

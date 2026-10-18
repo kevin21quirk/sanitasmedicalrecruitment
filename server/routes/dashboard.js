@@ -5,7 +5,8 @@ const r = Router();
 
 r.get('/', async (_req, res, next) => {
   try {
-    const [kpis, revenue, placementsByMonth, complianceAlerts, recentActivity, tasksDue, pipelineSummary, shiftsThisWeek] = await Promise.all([
+    const [kpis, revenue, placementsByMonth, complianceAlerts, recentActivity, tasksDue, pipelineSummary, shiftsThisWeek,
+      candidatesByRole, candidatesBySource, candidatesByStatus, requestStats, shiftOutcomes, recentCandidates] = await Promise.all([
       query(`SELECT
         (SELECT COUNT(*) FROM candidates WHERE status IN ('compliant','on_assignment')) AS active_candidates,
         (SELECT COUNT(*) FROM candidates WHERE registered_at > now() - interval '30 days') AS new_candidates_30d,
@@ -48,6 +49,27 @@ r.get('/', async (_req, res, next) => {
              FROM shifts s JOIN candidates c ON c.id = s.candidate_id JOIN clients cl ON cl.id = s.client_id
              WHERE s.shift_date BETWEEN date_trunc('week', now())::date AND date_trunc('week', now())::date + 6
              ORDER BY s.shift_date, s.start_time`),
+      // Analytics breakdowns for the dashboard charts
+      query(`SELECT role, COUNT(*) AS count FROM candidates WHERE status <> 'do_not_use' GROUP BY role ORDER BY count DESC`),
+      query(`SELECT COALESCE(NULLIF(source, ''), 'Unknown') AS source, COUNT(*) AS count FROM candidates GROUP BY 1 ORDER BY count DESC`),
+      query(`SELECT status, COUNT(*) AS count FROM candidates GROUP BY status`),
+      query(`SELECT
+        COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+        COUNT(*) FILTER (WHERE status = 'filled') AS filled,
+        COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+        COUNT(*) FILTER (WHERE status = 'pending' AND urgency = 'urgent') AS urgent,
+        COUNT(*) FILTER (WHERE date >= date_trunc('month', now())::date) AS this_month,
+        COUNT(*) FILTER (WHERE date >= date_trunc('month', now())::date AND status = 'filled') AS filled_this_month
+        FROM shift_requests`),
+      query(`SELECT
+        COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+        COUNT(*) FILTER (WHERE status = 'booked') AS booked,
+        COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+        COUNT(*) FILTER (WHERE status = 'no_show') AS no_show
+        FROM shifts WHERE shift_date > now()::date - 90`),
+      query(`SELECT c.id, c.first_name || ' ' || c.last_name AS name, c.role, c.status, c.source,
+               c.registered_at, c.last_worked_at, c.compliance_score, c.photo_file_id
+             FROM candidates c ORDER BY c.registered_at DESC LIMIT 10`),
     ]);
     res.json({
       kpis: kpis.rows[0],
@@ -58,6 +80,12 @@ r.get('/', async (_req, res, next) => {
       tasksDue: tasksDue.rows,
       pipeline: pipelineSummary.rows,
       shiftsThisWeek: shiftsThisWeek.rows,
+      candidatesByRole: candidatesByRole.rows,
+      candidatesBySource: candidatesBySource.rows,
+      candidatesByStatus: candidatesByStatus.rows,
+      requestStats: requestStats.rows[0],
+      shiftOutcomes: shiftOutcomes.rows[0],
+      recentCandidates: recentCandidates.rows,
     });
   } catch (e) { next(e); }
 });

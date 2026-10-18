@@ -37,7 +37,7 @@ export default function Candidates() {
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [debounced, setDebounced] = useState(search);
   const [role, setRole] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(() => searchParams.get('status') ?? '');
   const [compliance, setCompliance] = useState('');
   const [owner, setOwner] = useState('');
   const [page, setPage] = useState(1);

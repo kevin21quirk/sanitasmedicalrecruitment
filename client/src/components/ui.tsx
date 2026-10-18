@@ -83,7 +83,7 @@ export function Card({ children, className, solid }: { children: ReactNode; clas
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200/60 px-5 py-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/70 bg-gradient-to-r from-brand-500/[0.06] to-transparent px-5 py-4">
       <div>
         <h3 className="font-display text-[15px] font-semibold text-ink">{title}</h3>
         {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
@@ -325,14 +325,14 @@ export function Tabs<T extends string>({ tabs, value, onChange }: {
   tabs: { key: T; label: string; count?: number }[]; value: T; onChange: (k: T) => void;
 }) {
   return (
-    <div className="scroll-thin inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-900/5 p-1">
+    <div className="scroll-thin inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-white/40 p-1 ring-1 ring-white/70 backdrop-blur">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={clsx(
             'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors',
-            value === t.key ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            value === t.key ? 'bg-white/90 text-brand-700 shadow-sm ring-1 ring-brand-500/15' : 'text-slate-500 hover:text-slate-800'
           )}
         >
           {t.label}
@@ -352,8 +352,8 @@ export function StatCard({ label, value, icon: Icon, sub, tint }: {
   label: string; value: ReactNode; icon: React.ComponentType<{ className?: string }>; sub?: string; tint?: string;
 }) {
   return (
-    <Card className="p-4">
-      <span className={clsx('flex h-9 w-9 items-center justify-center rounded-xl', tint ?? 'bg-brand-500/10 text-brand-600')}>
+    <Card className="p-4 tile tile-ring">
+      <span className={clsx('flex h-9 w-9 items-center justify-center rounded-xl shadow-sm', tint ?? 'tile-band')}>
         <Icon className="h-4 w-4" />
       </span>
       <p className="mt-3 text-2xl font-bold tracking-tight text-ink">{value}</p>

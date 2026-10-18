@@ -97,6 +97,7 @@ function StaffApp() {
 
   return (
     <div className="flex min-h-screen">
+      <div className="mesh-orbs" aria-hidden />
       {/* Mobile backdrop */}
       {navOpen && (
         <div
@@ -134,9 +135,9 @@ function StaffApp() {
                     end={end}
                     className={({ isActive }) =>
                       clsx(
-                        'group flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all',
+                        'group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all',
                         isActive
-                          ? 'bg-white/15 text-white shadow-inner ring-1 ring-white/15'
+                          ? 'bg-gradient-to-r from-white/22 to-white/8 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.25)] ring-1 ring-white/20 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent-400'
                           : 'text-brand-100/75 hover:bg-white/8 hover:text-white'
                       )
                     }
@@ -171,7 +172,7 @@ function StaffApp() {
 
       {/* Main */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
-        <header className="glass sticky top-0 z-20 flex h-14 items-center justify-between gap-3 !rounded-none !border-x-0 !border-t-0 px-4 sm:px-6">
+        <header className="glass-bar sticky top-0 z-20 flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={() => setNavOpen(true)}
@@ -185,7 +186,7 @@ function StaffApp() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 placeholder="Search candidates, clients, vacancies…"
-                className="w-full rounded-xl border border-slate-200/70 bg-white/60 py-1.5 pl-9 pr-3 text-base focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 lg:text-sm"
+                className="w-full rounded-xl border border-white/80 bg-white/50 py-1.5 pl-9 pr-3 text-base shadow-inner shadow-brand-900/5 backdrop-blur focus:border-brand-400 focus:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-500/20 lg:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const q = (e.target as HTMLInputElement).value;

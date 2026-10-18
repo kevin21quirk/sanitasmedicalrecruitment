@@ -616,4 +616,9 @@ test('16: smoke — core staff endpoints still work', async () => {
     const r = await api(p, { cookie: cookies.admin });
     assert.ok([200].includes(r.status), `${p} → ${r.status}`);
   }
+  // Dashboard analytics breakdowns used by the chart tiles
+  const d = (await api('/dashboard', { cookie: cookies.admin })).body;
+  for (const k of ['candidatesByRole', 'candidatesBySource', 'candidatesByStatus', 'recentCandidates']) assert.ok(Array.isArray(d[k]), k);
+  for (const k of ['pending', 'filled', 'cancelled', 'urgent', 'this_month', 'filled_this_month']) assert.ok(k in d.requestStats, `requestStats.${k}`);
+  for (const k of ['completed', 'booked', 'cancelled', 'no_show']) assert.ok(k in d.shiftOutcomes, `shiftOutcomes.${k}`);
 });
