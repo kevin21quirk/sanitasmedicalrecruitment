@@ -26,6 +26,8 @@ r.get('/', async (_req, res, next) => {
 });
 
 // Create a portal or staff login. Admin only for staff; office+ can create portal accounts.
+// Staff: pass user_id to link an existing staff record, or new_user{name,role}
+// to create the staff record and its login in one go.
 r.post('/', async (req, res, next) => {
   try {
     const b = req.body || {};
@@ -39,11 +41,29 @@ r.post('/', async (req, res, next) => {
     if (!b.email || !b.password || b.password.length < 8) {
       return res.status(400).json({ error: 'Email and a password of 8+ characters are required' });
     }
+    const email = b.email.toLowerCase().trim();
+    let userId = b.user_id ? +b.user_id : null;
+    if (kind === 'staff') {
+      const accessRole = ['admin', 'office', 'compliance', 'finance'].includes(b.access_role) ? b.access_role : null;
+      if (b.new_user?.name?.trim()) {
+        const name = b.new_user.name.trim();
+        const initials = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+        // Reuse a staff record that already carries this email, else create it.
+        const { rows: existing } = await query(`SELECT id FROM users WHERE email = $1`, [email]);
+        userId = existing[0]?.id ?? (await query(
+          `INSERT INTO users (name, email, role, initials, access_role) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+          [name, email, b.new_user.role?.trim() || 'Recruiter', initials, accessRole ?? 'office'])).rows[0].id;
+      }
+      if (!userId) return res.status(400).json({ error: 'Choose a staff member or enter a new name' });
+      const { rows: dup } = await query(`SELECT id FROM accounts WHERE user_id = $1`, [userId]);
+      if (dup.length) return res.status(409).json({ error: 'That staff member already has a login account' });
+      if (accessRole) await query(`UPDATE users SET access_role = $1 WHERE id = $2`, [accessRole, userId]);
+    }
     const { rows } = await query(
       `INSERT INTO accounts (kind, user_id, candidate_id, client_id, contact_id, email, password_hash, must_reset)
        VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE) RETURNING id, kind, email`,
-      [kind, b.user_id || null, b.candidate_id || null, b.client_id || null, b.contact_id || null,
-       b.email.toLowerCase().trim(), hashPassword(b.password)]);
+      [kind, userId, b.candidate_id || null, b.client_id || null, b.contact_id || null,
+       email, hashPassword(b.password)]);
     await audit(req, 'account.created', 'account', rows[0].id, { kind, email: b.email });
     res.status(201).json(rows[0]);
   } catch (e) {

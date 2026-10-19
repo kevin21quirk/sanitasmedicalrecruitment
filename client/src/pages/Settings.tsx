@@ -306,7 +306,7 @@ export default function Settings() {
 function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
   const [rows, setRows] = useState<AccountRow[] | null>(null);
   const [creating, setCreating] = useState(false);
-  const [f, setF] = useState({ kind: 'worker', email: '', password: '', candidate_id: '', client_id: '', contact_id: '', user_id: '', access_role: 'office' });
+  const [f, setF] = useState({ kind: 'worker', email: '', password: '', candidate_id: '', client_id: '', contact_id: '', user_id: 'new', new_name: '', new_role: '', access_role: 'office' });
   const [candidates, setCandidates] = useState<{ id: number; label: string }[]>([]);
   const [clients, setClients] = useState<{ id: number; label: string }[]>([]);
   const [contacts, setContacts] = useState<{ id: number; label: string }[]>([]);
@@ -339,16 +339,21 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
         candidate_id: f.candidate_id ? +f.candidate_id : null,
         client_id: f.client_id ? +f.client_id : null,
         contact_id: f.contact_id ? +f.contact_id : null,
-        user_id: f.user_id ? +f.user_id : null,
+        user_id: f.kind === 'staff' && f.user_id !== 'new' ? +f.user_id : null,
+        new_user: f.kind === 'staff' && f.user_id === 'new' && f.new_name.trim()
+          ? { name: f.new_name.trim(), role: f.new_role.trim() || undefined } : undefined,
+        access_role: f.kind === 'staff' ? f.access_role : undefined,
       });
-      if (f.kind === 'staff' && f.user_id) {
-        await api.patch(`/accounts/users/${f.user_id}/access`, { access_role: f.access_role }).catch(() => {});
-      }
       setCreating(false);
-      setF({ ...f, email: '', password: '' });
+      setF({ ...f, email: '', password: '', new_name: '', new_role: '', user_id: 'new' });
       load();
     } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
   };
+
+  const canCreate = !!f.email && f.password.length >= 8 && (
+    f.kind === 'worker' ? !!f.candidate_id :
+    f.kind === 'client' || f.kind === 'supervisor' ? !!f.client_id :
+    f.user_id === 'new' ? !!f.new_name.trim() : !!f.user_id);
 
   const toggle = async (a: AccountRow) => {
     await api.patch(`/accounts/${a.id}`, { is_active: !a.is_active });
@@ -453,9 +458,18 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
               {f.kind === 'staff' && (
                 <>
                   <select className={inputCls} value={f.user_id} onChange={(e) => setF({ ...f, user_id: e.target.value })}>
-                    <option value="">Select staff member…</option>
-                    {users.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+                    <option value="new">New staff member…</option>
+                    {users.filter((u) => !rows?.some((a) => a.user_id === u.id))
+                      .map((u) => <option key={u.id} value={u.id}>{u.label} — existing record, no login</option>)}
                   </select>
+                  {f.user_id === 'new' && (
+                    <>
+                      <input className={inputCls} placeholder="Staff member's full name" value={f.new_name}
+                        onChange={(e) => setF({ ...f, new_name: e.target.value })} />
+                      <input className={inputCls} placeholder="Job title — e.g. Recruiter (optional)" value={f.new_role}
+                        onChange={(e) => setF({ ...f, new_role: e.target.value })} />
+                    </>
+                  )}
                   <select className={inputCls} value={f.access_role} onChange={(e) => setF({ ...f, access_role: e.target.value })}>
                     {['office', 'compliance', 'finance', 'admin'].map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
@@ -466,7 +480,7 @@ function AccountsTab({ isAdmin }: { isAdmin: boolean }) {
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button className={btnGhost} onClick={() => setCreating(false)}>Cancel</button>
-              <button className={btnPrimary} onClick={create} disabled={!f.email || f.password.length < 8}>Create</button>
+              <button className={btnPrimary} onClick={create} disabled={!canCreate}>Create</button>
             </div>
           </div>
         </div>
