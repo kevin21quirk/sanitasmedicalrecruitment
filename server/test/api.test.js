@@ -60,6 +60,21 @@ async function addDocs(candidateId, docs = BASE_DOCS) {
     fx.docs?.push?.(rows[0].id);
   }
 }
+// Audit rows are append-only by trigger; the suite's own teardown must briefly
+// lift that guard (table-owner only) to remove rows its activity produced.
+async function deleteTestAuditRows() {
+  try {
+    await query(`ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update`);
+    await query(
+      `DELETE FROM audit_log
+       WHERE actor_name LIKE 'TEST %' OR actor_name LIKE 'test-%@example.invalid'
+          OR account_id IN (SELECT id FROM accounts WHERE email LIKE 'test-%@example.invalid')
+          OR (entity_type = 'account' AND entity_id IN
+              (SELECT id FROM accounts WHERE email LIKE 'test-%@example.invalid'))`);
+  } finally {
+    await query(`ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update`);
+  }
+}
 // Re-runnable cleanup: remove leftovers from a previous failed run.
 async function purgeTestData() {
   const { rows: cands } = await query(`SELECT id FROM candidates WHERE email LIKE 'test-%@example.invalid'`);
@@ -88,6 +103,9 @@ async function purgeTestData() {
     await query(`DELETE FROM messages WHERE created_by = ANY($1::int[])`, [uids]);
     await query(`DELETE FROM users WHERE id = ANY($1::int[])`, [uids]);
   }
+  // The suite runs against a live DB — sweep audit rows its activity produced
+  // so test traffic never masquerades as real history.
+  await deleteTestAuditRows();
 }
 async function addCandidate(tag, { engagement = 'paye', payrollRef = null, docs = BASE_DOCS } = {}) {
   const { rows } = await query(
@@ -177,6 +195,9 @@ after(async () => {
     if (fx.clients.length) await query(`DELETE FROM client_requirements WHERE client_id = ANY($1::int[])`, [fx.clients]);
     await query(`DELETE FROM messages WHERE entity_type = 'candidate' AND entity_id = ANY($1::int[])`, [fx.candidates]);
     await query(`DELETE FROM messages WHERE to_contact LIKE 'test-%@example.invalid'`, []);
+    // audit trail must not retain test traffic on a live DB — sweep while the
+    // test accounts still exist so account_id/entity_id matches also apply
+    await deleteTestAuditRows();
     if (fx.accounts.length) {
       await query(`DELETE FROM sessions WHERE account_id = ANY($1::int[])`, [fx.accounts]);
       await query(`DELETE FROM accounts WHERE id = ANY($1::int[])`, [fx.accounts]);
