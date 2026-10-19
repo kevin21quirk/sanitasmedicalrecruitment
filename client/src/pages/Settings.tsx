@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Download, History, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Download, History, LogOut, MonitorSmartphone, RefreshCw, Save, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
 import { fmtDateTime } from '../lib/format';
@@ -9,6 +9,13 @@ import { useAuth } from '../lib/auth';
 interface AuditRow {
   id: number; actor_name: string | null; action: string; entity_type: string | null;
   entity_id: number | null; detail: Record<string, unknown>; created_at: string;
+}
+
+interface SessionRow {
+  token: string; account_id: number; kind: string; email: string; name: string;
+  access_role: string | null; client_name: string | null;
+  created_at: string; last_seen_at: string | null; expires_at: string;
+  ip: string | null; user_agent: string | null; is_current: boolean;
 }
 
 const SETTING_LABELS: Record<string, { label: string; hint: string; type: 'number' | 'boolean' | 'json' | 'text' }> = {
@@ -41,6 +48,8 @@ export default function Settings() {
   const [dirty, setDirty] = useState<Record<string, any>>({});
   const [auditRows, setAuditRows] = useState<AuditRow[] | null>(null);
   const [auditFilter, setAuditFilter] = useState('');
+  const [auditActor, setAuditActor] = useState('');
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [purgePreview, setPurgePreview] = useState<any | null>(null);
 
   const load = useCallback(() => {
@@ -49,9 +58,22 @@ export default function Settings() {
   useEffect(() => { load(); }, [load]);
 
   const loadAudit = useCallback(() => {
-    api.get<AuditRow[]>(`/admin/audit${auditFilter ? `?action=${encodeURIComponent(auditFilter)}` : ''}`)
+    const q = new URLSearchParams();
+    if (auditFilter) q.set('action', auditFilter);
+    if (auditActor) q.set('actor', auditActor);
+    api.get<AuditRow[]>(`/admin/audit${q.size ? `?${q}` : ''}`)
       .then(setAuditRows).catch(() => setAuditRows([]));
-  }, [auditFilter]);
+  }, [auditFilter, auditActor]);
+
+  const loadSessions = useCallback(() => {
+    api.get<SessionRow[]>('/admin/sessions').then(setSessions).catch(() => setSessions([]));
+  }, []);
+
+  const revokeSession = async (s: SessionRow) => {
+    if (!window.confirm(`Sign out ${s.name} (${s.email})${s.is_current ? ' — this is your current session, you will be logged out' : ''}?`)) return;
+    await api.del(`/admin/sessions/${s.token}`).catch((e) => alert(e instanceof Error ? e.message : 'Failed'));
+    loadSessions();
+  };
 
   const save = async () => {
     try {
@@ -97,10 +119,10 @@ export default function Settings() {
         <div className="scroll-thin flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-900/5 p-1">
           {(['profile', 'accounts', 'settings', 'audit', 'data'] as const).map((t) => (
             <button key={t} disabled={!['profile', 'accounts'].includes(t) && !isAdmin}
-              onClick={() => { setTab(t); if (t === 'audit' && !auditRows) loadAudit(); }}
+              onClick={() => { setTab(t); if (t === 'audit') { if (!auditRows) loadAudit(); if (!sessions) loadSessions(); } }}
               className={clsx('shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-xs font-medium capitalize disabled:opacity-40',
                 tab === t ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-              {t === 'audit' ? 'Audit log' : t === 'data' ? 'Data rights' : t === 'settings' ? 'Settings' : t === 'profile' ? 'My profile' : 'Accounts'}
+              {t === 'audit' ? 'Audit & sessions' : t === 'data' ? 'Data rights' : t === 'settings' ? 'Settings' : t === 'profile' ? 'My profile' : 'Accounts'}
             </button>
           ))}
         </div>
@@ -164,11 +186,52 @@ export default function Settings() {
       )}
 
       {tab === 'audit' && (
+        <div className="space-y-5">
         <Card>
-          <CardHeader title="Audit log" subtitle="Who did what — allocations, approvals, rate changes, exports (8.9)"
+          <CardHeader title="Active sessions" subtitle="Who is signed in right now — across staff and portals (5.3)"
+            action={<button className={btnGhost} onClick={loadSessions}><RefreshCw className="h-4 w-4" /></button>} />
+          {!sessions ? <Spinner /> : (
+            <ul className="scroll-thin max-h-72 divide-y divide-slate-200/50 overflow-y-auto">
+              {sessions.map((s) => {
+                const lastSeen = s.last_seen_at ? new Date(s.last_seen_at).getTime() : 0;
+                const activeNow = Date.now() - lastSeen < 3 * 60 * 1000;
+                return (
+                  <li key={s.token} className="flex items-center justify-between gap-3 px-5 py-2.5">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm font-medium text-ink">
+                        <span className={clsx('h-2 w-2 shrink-0 rounded-full', activeNow ? 'bg-emerald-500' : 'bg-slate-300')} title={activeNow ? 'Active now' : 'Idle'} />
+                        <span className="truncate">{s.name}</span>
+                        {s.is_current && <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700">this device</span>}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {s.kind}{s.access_role ? ` · ${s.access_role}` : ''}{s.client_name && s.kind !== 'client' ? ` · ${s.client_name}` : ''} · {s.email}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Signed in {fmtDateTime(s.created_at)} · last active {s.last_seen_at ? fmtDateTime(s.last_seen_at) : '—'} · expires {fmtDateTime(s.expires_at)}
+                        {s.ip ? ` · ${s.ip}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {s.user_agent && (
+                        <span className="text-slate-300" title={s.user_agent}><MonitorSmartphone className="h-4 w-4" /></span>
+                      )}
+                      <button className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-red-500" onClick={() => revokeSession(s)}>
+                        <LogOut className="h-3.5 w-3.5" /> Sign out
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+              {!sessions.length && <li className="px-5 py-6 text-center text-xs text-slate-400">No active sessions.</li>}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <CardHeader title="Audit log" subtitle="Who did what, and when — sign-ins, allocations, approvals, rate changes, exports (8.9)"
             action={
               <div className="flex gap-2">
-                <input className={clsx(inputCls, 'w-48')} placeholder="Filter action…" value={auditFilter} onChange={(e) => setAuditFilter(e.target.value)} />
+                <input className={clsx(inputCls, 'w-36')} placeholder="Filter who…" value={auditActor} onChange={(e) => setAuditActor(e.target.value)} />
+                <input className={clsx(inputCls, 'w-40')} placeholder="Filter action…" value={auditFilter} onChange={(e) => setAuditFilter(e.target.value)} />
                 <button className={btnGhost} onClick={loadAudit}><RefreshCw className="h-4 w-4" /></button>
               </div>
             } />
@@ -190,6 +253,7 @@ export default function Settings() {
             </ul>
           )}
         </Card>
+        </div>
       )}
 
       {tab === 'data' && (

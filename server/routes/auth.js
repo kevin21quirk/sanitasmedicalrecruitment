@@ -39,17 +39,25 @@ r.post('/login', async (req, res, next) => {
     const acc = rows[0];
     if (!acc || !checkPassword(password, acc.password_hash)) {
       noteFailure(req, key);
+      req.account = { id: acc?.id ?? null, name: key };
+      await audit(req, 'auth.login_failed', 'account', acc?.id ?? null, { reason: 'bad_credentials' });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-    if (!acc.is_active) return res.status(403).json({ error: 'This account has been deactivated' });
+    if (!acc.is_active) {
+      req.account = { id: acc.id, name: key };
+      await audit(req, 'auth.login_failed', 'account', acc.id, { reason: 'deactivated' });
+      return res.status(403).json({ error: 'This account has been deactivated' });
+    }
     // portal accounts for suspended workers are refused at login too
     if (acc.kind === 'worker' && acc.candidate_id) {
       const { rows: c } = await query(`SELECT suspended, erased_at FROM candidates WHERE id = $1`, [acc.candidate_id]);
       if (c[0]?.suspended || c[0]?.erased_at) {
+        req.account = { id: acc.id, name: key };
+        await audit(req, 'auth.login_failed', 'account', acc.id, { reason: 'suspended' });
         return res.status(403).json({ error: 'This account has been suspended' });
       }
     }
-    const token = await createSession(acc.id);
+    const token = await createSession(acc.id, { ip: req.ip, userAgent: req.headers['user-agent'] });
     setSessionCookie(res, token);
     clearFailures(req, key);
     await query(`UPDATE accounts SET last_login_at = now() WHERE id = $1`, [acc.id]);
@@ -63,6 +71,7 @@ r.post('/logout', async (req, res, next) => {
   try {
     await destroySession(req.sessionToken);
     clearSessionCookie(res);
+    if (req.account) await audit(req, 'auth.logout', 'account', req.account.id);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

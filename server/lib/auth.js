@@ -9,11 +9,12 @@ export const hashPassword = (pw) => bcrypt.hashSync(pw, 10);
 export const checkPassword = (pw, hash) => bcrypt.compareSync(pw, hash || '');
 export const newToken = () => crypto.randomBytes(32).toString('hex');
 
-export async function createSession(accountId) {
+export async function createSession(accountId, meta = {}) {
   const token = newToken();
   await query(
-    `INSERT INTO sessions (token, account_id, expires_at) VALUES ($1,$2, now() + interval '${SESSION_DAYS} days')`,
-    [token, accountId]);
+    `INSERT INTO sessions (token, account_id, expires_at, last_seen_at, ip, user_agent)
+     VALUES ($1,$2, now() + interval '${SESSION_DAYS} days', now(), $3, $4)`,
+    [token, accountId, meta.ip ?? null, meta.userAgent ?? null]);
   return token;
 }
 
@@ -78,6 +79,12 @@ export async function attachAccount(req, _res, next) {
         mustReset: !!row.must_reset,
       };
       req.sessionToken = token;
+      // Throttled last-seen stamp for the active-sessions view — at most one
+      // write per minute per session, fire-and-forget so it never blocks a request.
+      query(
+        `UPDATE sessions SET last_seen_at = now()
+         WHERE token = $1 AND (last_seen_at IS NULL OR last_seen_at < now() - interval '1 minute')`,
+        [token]).catch(() => {});
     }
     next();
   } catch (e) { next(e); }

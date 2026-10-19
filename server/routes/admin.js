@@ -10,14 +10,47 @@ const r = Router();
 // ─── 8.9 audit log viewer ──────────────────────────────────────────────────
 r.get('/audit', async (req, res, next) => {
   try {
-    const { entity_type, action, limit = 300 } = req.query;
+    const { entity_type, action, actor, limit = 300 } = req.query;
     const where = [], params = [];
     if (entity_type) { params.push(entity_type); where.push(`entity_type = $${params.length}`); }
     if (action) { params.push(`%${action}%`); where.push(`action ILIKE $${params.length}`); }
+    if (actor) { params.push(`%${actor}%`); where.push(`actor_name ILIKE $${params.length}`); }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const { rows } = await query(
       `SELECT * FROM audit_log ${whereSql} ORDER BY created_at DESC LIMIT $${params.push(+limit)}`, params);
     res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// ─── Live sessions: who is signed in right now (admin only) ────────────────
+r.get('/sessions', requireAccess('admin'), async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT s.token, s.created_at, s.last_seen_at, s.expires_at, s.ip, s.user_agent,
+              a.id AS account_id, a.kind, a.email, u.access_role,
+              COALESCE(u.name, c.first_name || ' ' || c.last_name, cc.name, cl.name, a.email) AS name,
+              cl.name AS client_name
+       FROM sessions s
+       JOIN accounts a ON a.id = s.account_id
+       LEFT JOIN users u ON u.id = a.user_id
+       LEFT JOIN candidates c ON c.id = a.candidate_id
+       LEFT JOIN clients cl ON cl.id = a.client_id
+       LEFT JOIN client_contacts cc ON cc.id = a.contact_id
+       WHERE s.expires_at > now()
+       ORDER BY s.last_seen_at DESC NULLS LAST, s.created_at DESC`);
+    res.json(rows.map((s) => ({ ...s, is_current: s.token === req.sessionToken })));
+  } catch (e) { next(e); }
+});
+
+// Force-sign-out a session (e.g. a lost device or a departed staff member).
+r.delete('/sessions/:token', requireAccess('admin'), async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `DELETE FROM sessions WHERE token = $1 RETURNING account_id`, [req.params.token]);
+    if (!rows.length) return res.status(404).json({ error: 'Session not found' });
+    await audit(req, 'session.revoked', 'account', rows[0].account_id,
+      { own_session: req.params.token === req.sessionToken });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
